@@ -1,0 +1,454 @@
+name: Security Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1' # Weekly security scan
+
+env:
+  NODE_VERSION: '18.x'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Dependency vulnerability scanning
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: apps/web/package-lock.json
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install Python dependencies
+      run: |
+        cd apps/api
+        pip install -r requirements.txt
+        pip install safety bandit semgrep
+    
+    - name: Install Node dependencies
+      run: |
+        cd apps/web
+        npm ci
+    
+    - name: Python dependency security scan (Safety)
+      run: |
+        cd apps/api
+        safety check --json --output safety-report.json || true
+    
+    - name: Python dependency security scan (pip-audit)
+      run: |
+        pip install pip-audit
+        cd apps/api
+        pip-audit --desc --format=json --output=pip-audit-report.json || true
+    
+    - name: Node.js dependency security scan
+      run: |
+        cd apps/web
+        npm audit --audit-level=moderate --json > npm-audit-report.json || true
+    
+    - name: Upload dependency scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: dependency-scan-results
+        path: |
+          apps/api/safety-report.json
+          apps/api/pip-audit-report.json
+          apps/web/npm-audit-report.json
+        retention-days: 30
+
+  # Static code analysis
+  static-analysis:
+    name: Static Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install analysis tools
+      run: |
+        pip install bandit semgrep flake8 mypy black isort
+        cd apps/api
+        pip install -r requirements.txt
+    
+    - name: Python security analysis (Bandit)
+      run: |
+        cd apps/api
+        bandit -r . -f json -o bandit-report.json || true
+    
+    - name: Python code quality (Flake8)
+      run: |
+        cd apps/api
+        flake8 --max-line-length=120 --exclude=venv,__pycache__ --format=json --output-file=flake8-report.json . || true
+    
+    - name: Python type checking (MyPy)
+      run: |
+        cd apps/api
+        mypy --ignore-missing-imports --json-report mypy-report . || true
+    
+    - name: Semgrep security scan
+      run: |
+        semgrep --config=auto --json --output=semgrep-report.json . || true
+    
+    - name: Upload static analysis results
+      uses: actions/upload-artifact@v3
+      with:
+        name: static-analysis-results
+        path: |
+          apps/api/bandit-report.json
+          apps/api/flake8-report.json
+          apps/api/mypy-report/
+          semgrep-report.json
+        retention-days: 30
+
+  # Container security scanning
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build API container
+      run: |
+        cd apps/api
+        docker build -t nn-builder-api:latest .
+    
+    - name: Build Web container
+      run: |
+        cd apps/web
+        docker build -t nn-builder-web:latest .
+    
+    - name: Run Trivy vulnerability scanner (API)
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'nn-builder-api:latest'
+        format: 'sarif'
+        output: 'trivy-api-results.sarif'
+    
+    - name: Run Trivy vulnerability scanner (Web)
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'nn-builder-web:latest'
+        format: 'sarif'
+        output: 'trivy-web-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-api-results.sarif'
+    
+    - name: Upload container scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: container-scan-results
+        path: |
+          trivy-api-results.sarif
+          trivy-web-results.sarif
+        retention-days: 30
+
+  # Secrets scanning
+  secrets-scan:
+    name: Secrets Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Full history for better secret detection
+    
+    - name: Install truffleHog
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+    
+    - name: Run truffleHog secrets scan
+      run: |
+        trufflehog git file://. --json > trufflehog-report.json || true
+    
+    - name: Check for exposed secrets in environment files
+      run: |
+        # Check for common secret patterns
+        echo "Checking for exposed secrets..."
+        find . -name "*.env*" -o -name "*.key" -o -name "*.pem" | head -20
+        
+        # Check for hardcoded secrets in code
+        grep -r -i "password\|secret\|key\|token" --include="*.py" --include="*.ts" --include="*.js" . | \
+          grep -v "test\|example\|placeholder" | head -10 || true
+    
+    - name: Upload secrets scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: secrets-scan-results
+        path: trufflehog-report.json
+        retention-days: 30
+
+  # Security testing
+  security-testing:
+    name: Security Testing
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        cd apps/api
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio
+    
+    - name: Set up test environment
+      run: |
+        cd apps/api
+        cp .env.example .env.test
+        # Set test database URL
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost/test_db" >> .env.test
+        echo "SECRET_KEY=test-secret-key-for-ci-only" >> .env.test
+    
+    - name: Run security tests
+      run: |
+        cd apps/api
+        # Run authentication and authorization tests
+        python -m pytest tests/security/ -v --cov=. --cov-report=json || true
+    
+    - name: OWASP ZAP API Security Test
+      uses: zaproxy/action-api-scan@v0.2.0
+      with:
+        target: 'http://localhost:8000'
+        format: 'openapi'
+        cmd_options: '-a'
+    
+    - name: Upload security test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-test-results
+        path: |
+          apps/api/coverage.json
+          report_html.html
+          report_json.json
+        retention-days: 30
+
+  # License compliance check
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    
+    - name: Install license checkers
+      run: |
+        pip install pip-licenses
+        npm install -g license-checker
+    
+    - name: Check Python licenses
+      run: |
+        cd apps/api
+        pip install -r requirements.txt
+        pip-licenses --format=json --output-file=python-licenses.json
+    
+    - name: Check Node.js licenses
+      run: |
+        cd apps/web
+        npm ci
+        license-checker --json --out npm-licenses.json
+    
+    - name: Upload license reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: license-reports
+        path: |
+          apps/api/python-licenses.json
+          apps/web/npm-licenses.json
+        retention-days: 30
+
+  # Generate security report
+  security-report:
+    name: Generate Security Report
+    needs: [dependency-scan, static-analysis, container-scan, secrets-scan, security-testing, license-check]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Generate security summary
+      run: |
+        cat > security-summary.md << 'EOF'
+        # Security Scan Summary
+        
+        Generated on: $(date)
+        Commit: ${{ github.sha }}
+        Branch: ${{ github.ref_name }}
+        
+        ## Dependency Vulnerabilities
+        
+        ### Python Dependencies
+        ```bash
+        # Check safety-report.json and pip-audit-report.json
+        ```
+        
+        ### Node.js Dependencies
+        ```bash
+        # Check npm-audit-report.json
+        ```
+        
+        ## Static Code Analysis
+        
+        ### Security Issues (Bandit)
+        ```bash
+        # Check bandit-report.json
+        ```
+        
+        ### Code Quality (Flake8)
+        ```bash
+        # Check flake8-report.json
+        ```
+        
+        ## Container Security
+        ```bash
+        # Check Trivy scan results
+        ```
+        
+        ## Secrets Detection
+        ```bash
+        # Check truffleHog results
+        ```
+        
+        ## Security Testing
+        ```bash
+        # Check pytest and OWASP ZAP results
+        ```
+        
+        ## License Compliance
+        ```bash
+        # Check license reports
+        ```
+        
+        ## Recommendations
+        
+        1. Review and fix any HIGH or CRITICAL vulnerabilities
+        2. Update dependencies with known security issues
+        3. Address static analysis security warnings
+        4. Rotate any exposed secrets
+        5. Review license compatibility
+        
+        EOF
+    
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-report
+        path: security-summary.md
+        retention-days: 90
+    
+    - name: Comment PR with security summary
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const summary = fs.readFileSync('security-summary.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          });
+
+  # Security notifications
+  notify-security-issues:
+    name: Security Notifications
+    needs: [dependency-scan, static-analysis, secrets-scan]
+    runs-on: ubuntu-latest
+    if: failure()
+    
+    steps:
+    - name: Notify security team
+      run: |
+        echo "🚨 Security scan failures detected!"
+        echo "Repository: ${{ github.repository }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Please review the security scan results and take appropriate action."
+        
+        # In a real environment, you would integrate with:
+        # - Slack notifications
+        # - Email alerts
+        # - Security incident management systems
+        # - JIRA ticket creation
+        
+    - name: Create security issue
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const title = '🚨 Security Scan Failures Detected';
+          const body = `
+          Security vulnerabilities or issues were detected in commit ${{ github.sha }}.
+          
+          Please review the following:
+          1. Check the security pipeline results
+          2. Review dependency vulnerabilities
+          3. Address static analysis warnings
+          4. Verify no secrets are exposed
+          
+          **Priority**: HIGH
+          **Impact**: Security
+          `;
+          
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['security', 'urgent', 'bug']
+          }); 
