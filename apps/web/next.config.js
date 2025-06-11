@@ -27,6 +27,27 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   },
   
+  // Webpack configuration for Monaco Editor
+  webpack: (config, { isServer }) => {
+    // Monaco Editor configuration
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        module: false,
+        path: false,
+      };
+    }
+    
+    // Handle Monaco Editor worker files
+    config.module.rules.push({
+      test: /\.worker\.js$/,
+      use: { loader: 'worker-loader' },
+    });
+    
+    return config;
+  },
+  
   // Security headers (won't work with static export but kept for reference)
   async headers() {
     return [

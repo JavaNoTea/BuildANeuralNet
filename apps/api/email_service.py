@@ -110,7 +110,6 @@ async def send_verification_email(email: str, username: str, verification_token:
     
     # Send email
     try:
-        print(f"🔄 Attempting to send email via {SMTP_HOST}:{SMTP_PORT} with user {SMTP_USER}")
         await aiosmtplib.send(
             message,
             hostname=SMTP_HOST,
@@ -124,10 +123,7 @@ async def send_verification_email(email: str, username: str, verification_token:
         print(f"✅ Verification email sent successfully to {email}")
         return True
     except Exception as e:
-        print(f"❌ Failed to send email to {email}")
-        print(f"❌ Error type: {type(e).__name__}")
-        print(f"❌ Error details: {str(e)}")
-        print(f"❌ SMTP Config: Host={SMTP_HOST}, Port={SMTP_PORT}, User={SMTP_USER}")
+        print(f"❌ Failed to send email to {email}: {e}")
         return False
 
 async def send_password_reset_email(email: str, username: str, reset_token: str):
@@ -156,7 +152,6 @@ async def send_password_reset_email(email: str, username: str, reset_token: str)
     message.attach(html_part)
     
     try:
-        print(f"🔄 Attempting to send password reset email via {SMTP_HOST}:{SMTP_PORT}")
         await aiosmtplib.send(
             message,
             hostname=SMTP_HOST,
@@ -167,10 +162,7 @@ async def send_password_reset_email(email: str, username: str, reset_token: str)
             validate_certs=False,
             timeout=30
         )
-        print(f"✅ Password reset email sent successfully to {email}")
         return True
     except Exception as e:
-        print(f"❌ Failed to send password reset email to {email}")
-        print(f"❌ Error type: {type(e).__name__}")
-        print(f"❌ Error details: {str(e)}")
+        print(f"Failed to send email: {e}")
         return False 

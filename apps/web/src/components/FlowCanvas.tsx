@@ -483,7 +483,7 @@ function FlowCanvasInner() {
       nodes.map((node: Node<NodeData>) => {
         const validation = nodeValidation.find(v => v.node.id === node.id);
         return {
-          ...node,
+        ...node,
           className: validation?.className || ''
         };
       })
@@ -1056,7 +1056,7 @@ function FlowCanvasInner() {
           residualSources.set(edge.target, []);
         }
         if (!residualSources.get(edge.target)!.includes(edge.source)) {
-          residualSources.get(edge.target)!.push(edge.source);
+        residualSources.get(edge.target)!.push(edge.source);
         }
       } else if (edge.type === 'sum') {
         if (!sumSources.has(edge.target)) {
@@ -2171,10 +2171,10 @@ function FlowCanvasInner() {
               </div>
             </div>
             <div className="flex-1 overflow-hidden">
-              <CodeEditor
-                code={code}
-                onCodeChange={setCode}
-              />
+                <CodeEditor
+                  code={code}
+                  onCodeChange={setCode}
+                />
             </div>
           </div>
         ) : (
