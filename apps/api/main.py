@@ -541,13 +541,27 @@ async def autosave_model(
 
 # Mount static files for frontend
 if os.path.exists("static"):
+    # Mount Next.js static assets at their expected paths
+    app.mount("/_next", StaticFiles(directory="static/_next"), name="nextjs-static")
+    # Mount other static files 
     app.mount("/static", StaticFiles(directory="static"), name="static")
     
     # Catch-all route to serve React app for client-side routing
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        # Don't serve frontend for API routes
-        if full_path.startswith("api/") or full_path.startswith("auth/") or full_path.startswith("models/") or full_path == "ping":
+        # Don't serve frontend for API routes or static assets
+        if (full_path.startswith("api/") or 
+            full_path.startswith("auth/") or 
+            full_path.startswith("models/") or 
+            full_path.startswith("_next/") or 
+            full_path.startswith("static/") or 
+            full_path == "ping" or
+            full_path.endswith(".css") or
+            full_path.endswith(".js") or
+            full_path.endswith(".ico") or
+            full_path.endswith(".svg") or
+            full_path.endswith(".png") or
+            full_path.endswith(".woff2")):
             raise HTTPException(status_code=404, detail="Not found")
         
         # Serve index.html for all non-API routes
