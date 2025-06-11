@@ -50,13 +50,21 @@ async def startup_event():
         # Don't fail startup - tables might already exist
 
 # Security: Add trusted host middleware - Allow Railway subdomains
-allowed_hosts_str = os.getenv("ALLOWED_HOSTS", "www.buildaneural.net,buildaneuralnet-production.up.railway.app,buildaneural.net,localhost,127.0.0.1")
+# Ensure both www and non-www versions are always included
+base_hosts = "www.buildaneural.net,buildaneural.net,buildaneuralnet-production.up.railway.app,localhost,127.0.0.1"
+allowed_hosts_str = os.getenv("ALLOWED_HOSTS", base_hosts)
+
+# Always ensure www.buildaneural.net is included (in case env var overrides)
+required_hosts = ["www.buildaneural.net", "buildaneural.net"]
+for host in required_hosts:
+    if host not in allowed_hosts_str:
+        allowed_hosts_str += f",{host}"
 
 # Add Railway wildcard patterns if not already present
 if "up.railway.app" in allowed_hosts_str and "*.up.railway.app" not in allowed_hosts_str:
     allowed_hosts_str += ",*.up.railway.app"
 
-allowed_hosts = allowed_hosts_str.split(",")
+allowed_hosts = [host.strip() for host in allowed_hosts_str.split(",") if host.strip()]
 print(f"🔧 Allowed hosts: {allowed_hosts}")  # Debug logging
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
