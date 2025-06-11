@@ -17,7 +17,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from database import get_db, User, SavedModel
+from database import get_db, User, SavedModel, create_tables
 from auth import (
     get_password_hash, verify_password, create_access_token, 
     create_refresh_token, create_verification_token,
@@ -37,6 +37,17 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="Neural Network Builder API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Create database tables on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database tables on application startup"""
+    try:
+        create_tables()
+        print("✅ Database tables created/verified successfully")
+    except Exception as e:
+        print(f"❌ Error creating database tables: {e}")
+        # Don't fail startup - tables might already exist
 
 # Security: Add trusted host middleware - Allow Railway subdomains
 allowed_hosts_str = os.getenv("ALLOWED_HOSTS", "www.buildaneural.net,buildaneuralnet-production.up.railway.app,buildaneural.net,localhost,127.0.0.1")
