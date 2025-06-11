@@ -1,119 +1,106 @@
 # Neural Network Builder
 
-A visual, web-based neural network builder that lets you create, customize, and export neural network architectures through an intuitive drag-and-drop interface. Build your neural networks visually and get clean PyTorch code ready for training!
+A visual drag-and-drop neural network designer that generates clean PyTorch code. I built this to make deep learning more accessible and to bridge the gap between visual design and actual implementation.
 
-## 🚀 Features
+![Neural Network Builder](https://img.shields.io/badge/React-18-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-Python-green) ![PyTorch](https://img.shields.io/badge/PyTorch-Ready-orange)
 
-### 🎨 Visual Network Designer
-- **Drag-and-Drop Interface**: Build neural networks with intuitive visual tools
-- **Real-time Visualization**: See your network architecture as you build
-- **Node Types**: Dense layers, Conv2D, MaxPool2D, Dropout, and more
-- **Customizable Parameters**: Configure activation functions, layer sizes, and hyperparameters
+## Why I Built This
 
-### 💻 Code Generation
-- **PyTorch Export**: Generate clean, runnable PyTorch code from your visual designs
-- **Complete Training Scripts**: Get full training loops with data loading and optimization
-- **Industry Standard**: Generated code follows PyTorch best practices
+As someone learning deep learning, I found it frustrating to translate neural network architectures from papers into actual code. I wanted a tool that would let me design networks visually and then generate the PyTorch implementation automatically.
 
-### 💾 Project Management
-- **Save & Load**: Persist your network designs and reload them later
-- **Model Persistence**: Save models to your account with user authentication
-- **Export Options**: Download your projects as JSON files
+## What It Does
+
+- **Visual Design**: Drag and drop layers to build your network architecture
+- **Real-time Validation**: See connection errors and type mismatches as you build
+- **Code Generation**: Get clean, runnable PyTorch code from your visual design
+- **Save & Load**: Keep your designs and iterate on them
+- **User Accounts**: Sign up to save your models in the cloud
+
+## Demo
+
+Try it live at: **[buildaneural.net](https://buildaneural.net)**
 
 ## Tech Stack
 
-- **Frontend**: React 18, TypeScript, React Flow, Tailwind CSS
-- **Backend**: FastAPI (Python), SQLAlchemy, JWT Authentication
-- **Database**: SQLite (development), PostgreSQL (production)
-- **ML Framework**: PyTorch
+**Frontend:**
+- React 18 with TypeScript
+- React Flow for the visual editor
+- Tailwind CSS for styling
+- Zustand for state management
 
-## Getting Started
+**Backend:**
+- FastAPI (Python)
+- SQLAlchemy for database ORM
+- JWT authentication
+- SQLite/PostgreSQL
 
-### Prerequisites
+## Features I'm Proud Of
 
-- Node.js 18+ and npm/pnpm
-- Python 3.8+
+### Smart Connection Validation
+The editor validates connections between layers in real-time, checking tensor dimensions and data types to prevent common mistakes.
 
-### Installation
+### Clean Code Generation
+Instead of just dumping layers together, the generator creates properly structured PyTorch classes with:
+- Proper imports and dependencies
+- Clean forward() methods
+- Training loops with optimizers
+- Example usage code
 
-1. Clone the repository:
+### Responsive Design
+Works on desktop and tablet - I spent time making sure the drag-and-drop feels smooth across devices.
+
+## Quick Start
+
+1. **Clone and install:**
 ```bash
-git clone https://github.com/yourusername/nn-builder.git
-cd nn-builder
+git clone https://github.com/JavaNoTea/BuildANeuralNet.git
+cd BuildANeuralNet
+npm install
 ```
 
-2. Install dependencies:
-```bash
-# Install root dependencies
-npm install
-
-# Install frontend dependencies
-cd apps/web
-npm install
-
-# Install backend dependencies
-cd ../api
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-3. Set up the database:
+2. **Set up the backend:**
 ```bash
 cd apps/api
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 python migrate_database.py
 ```
 
-4. Configure environment variables:
+3. **Start development servers:**
 ```bash
-cd apps/api
-cp env.example .env
-# Edit .env with your configuration
-```
-
-### Running the Application
-
-1. Start the backend:
-```bash
-cd apps/api
-source venv/bin/activate
+# Backend (from apps/api)
 uvicorn main:app --reload
-```
 
-2. Start the frontend:
-```bash
-cd apps/web
+# Frontend (from apps/web) 
 npm run dev
 ```
 
-3. Open http://localhost:3000 in your browser
+4. **Open http://localhost:3000**
 
-## Usage
+## Environment Setup
 
-1. **Create an Account**: Sign up with your email for model persistence
-2. **Build a Model**: Use the visual editor to create your neural network
-3. **Configure Layers**: Set parameters like input/output sizes, activation functions
-4. **Generate Code**: Export your design as clean PyTorch code
-5. **Save Your Work**: Save models to your account for later use
-6. **Download Projects**: Export complete projects as JSON files
+Create `apps/api/.env`:
+```bash
+SECRET_KEY=your-secret-key-here
+ENCRYPTION_KEY=your-encryption-key-here
+DATABASE_URL=sqlite:///./nn_builder.db
+
+# Optional: Email verification
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+```
 
 ## How It Works
 
-### Visual Design
-- Drag layer nodes from the sidebar onto the canvas
-- Connect layers by dragging from output ports to input ports
-- Configure each layer's parameters in the properties panel
-- See your network structure update in real-time
+1. **Design**: Drag layers from the sidebar onto the canvas
+2. **Connect**: Link layers by dragging from output to input ports
+3. **Configure**: Click layers to set parameters (sizes, activations, etc.)
+4. **Generate**: Hit the code button to get your PyTorch implementation
+5. **Export**: Copy the code or save your design
 
-### Code Generation
-The app analyzes your visual design and generates:
-- Model class definition with proper layer initialization
-- Forward pass implementation
-- Training loop with optimizer and loss function
-- Data loading examples for common datasets
-- Complete, runnable PyTorch scripts
+## Example Output
 
-### Example Generated Code
 ```python
 import torch
 import torch.nn as nn
@@ -132,60 +119,35 @@ class NeuralNetwork(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
+
+# Training setup
+model = NeuralNetwork()
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 ```
 
-## Development
+## Deployment
 
-### Project Structure
-```
-nn-builder/
-├── apps/
-│   ├── web/          # React frontend
-│   └── api/          # FastAPI backend
-├── packages/         # Shared packages
-└── docker-compose.yml
-```
+I deployed this on Railway for free hosting. The app uses Docker for easy deployment anywhere.
 
-### API Documentation
+## Challenges I Solved
 
-Once the backend is running, visit http://localhost:8000/docs for the interactive API documentation.
+- **Type Safety**: Ensuring layer connections are valid at design time
+- **State Management**: Keeping the visual editor and property panel in sync
+- **Code Generation**: Translating visual graphs into clean, readable code
+- **User Experience**: Making drag-and-drop feel natural and responsive
 
-## Save/Load Functionality
+## What's Next
 
-The application supports saving and loading your complete neural network projects:
-
-- **Save**: Downloads a JSON file containing your complete project state
-- **Load**: Loads a previously saved project file and restores the complete state
-- **Account Storage**: Save models to your account for persistent access
-
-### How to Use Save/Load
-
-1. **Saving**: Use the File menu to save your project locally or to your account
-2. **Loading**: Load previously saved projects from files or your account
-3. **New Project**: Start fresh with a blank canvas
-
-### What Gets Saved
-
-- All nodes and their configurations
-- All connections between nodes
-- Layer parameters and settings
-- Generated PyTorch code
-- Project metadata
-
-## Available Layer Types
-
-- **Dense/Linear**: Fully connected layers
-- **Conv2D**: 2D convolutional layers
-- **MaxPool2D**: Max pooling layers
-- **Dropout**: Regularization layers
-- **Activation**: ReLU, Sigmoid, Tanh, and more
-- **Batch Normalization**: Normalization layers
-- **Input/Output**: Network endpoints
+- Add more layer types (LSTM, Transformer blocks)
+- Model visualization and architecture diagrams
+- Integration with popular datasets
+- Model performance predictions
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Feel free to open issues or submit PRs! I'm always looking to improve this tool.
 
 ## License
 
-MIT License - see LICENSE file for details 
+MIT License - feel free to use this in your own projects! 

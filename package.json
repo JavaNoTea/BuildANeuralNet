@@ -1,14 +1,16 @@
 {
-  "name": "nn-builder",
+  "name": "neural-network-builder",
   "version": "1.0.0",
-  "description": "",
+  "description": "Visual drag-and-drop neural network designer with PyTorch code generation",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "cd apps/web && npm run dev",
+    "build": "cd apps/web && npm run build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["neural-network", "pytorch", "machine-learning", "visual-editor", "react"],
+  "author": "JavaNoTea",
+  "license": "MIT",
   "packageManager": "pnpm@10.11.0",
   "devDependencies": {
     "@types/react": "^19.1.6",
