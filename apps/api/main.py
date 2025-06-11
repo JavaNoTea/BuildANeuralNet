@@ -89,13 +89,15 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     
-    # Content Security Policy - Strict security for visual app only
+    # Content Security Policy - Allow Monaco Editor CDN
     csp = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "img-src 'self' data: blob:; "
-        "connect-src 'self';"
+        "connect-src 'self' https://cdn.jsdelivr.net; "
+        "worker-src 'self' blob: https://cdn.jsdelivr.net; "
+        "font-src 'self' https://cdn.jsdelivr.net;"
     )
     response.headers["Content-Security-Policy"] = csp
     
