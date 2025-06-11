@@ -12,19 +12,46 @@ import { api } from '@/lib/api';
 
 export default function Home() {
   const { mode } = useFlowStore();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, accessToken, setAuth, logout, setLoading, isLoading } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [hasSeenAuthModal, setHasSeenAuthModal] = useState(false);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
-  // Show auth modal on first visit
+  // Initialize authentication on app load
   useEffect(() => {
-    if (!hasSeenAuthModal && !isAuthenticated) {
+    const initializeAuth = async () => {
+      setLoading(true);
+      
+      // Check if we have stored tokens
+      if (accessToken) {
+        try {
+          // Validate token by getting current user
+          const user = await api.getCurrentUser();
+          // Token is valid, update auth state with user data
+          setAuth(user, accessToken, useAuthStore.getState().refreshToken || '');
+        } catch (error) {
+          console.log('Stored token invalid, clearing auth');
+          // Token is invalid, clear stored auth
+          logout();
+        }
+      }
+      
+      setLoading(false);
+      setAuthInitialized(true);
+    };
+
+    initializeAuth();
+  }, []); // Run once on mount
+
+  // Show auth modal on first visit (only after auth is initialized)
+  useEffect(() => {
+    if (authInitialized && !hasSeenAuthModal && !isAuthenticated) {
       setTimeout(() => {
         setShowAuthModal(true);
         setHasSeenAuthModal(true);
       }, 1000); // Show after 1 second
     }
-  }, [hasSeenAuthModal, isAuthenticated]);
+  }, [authInitialized, hasSeenAuthModal, isAuthenticated]);
 
   // Autosave functionality
   useEffect(() => {
@@ -59,6 +86,18 @@ export default function Home() {
       clearTimeout((window as any).autosaveTimeout);
     };
   }, [isAuthenticated]);
+
+  // Show loading screen while checking authentication
+  if (isLoading || !authInitialized) {
+    return (
+      <div className="flex h-screen bg-gray-100 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-100 relative">
