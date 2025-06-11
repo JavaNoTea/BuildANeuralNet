@@ -9,7 +9,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://buildaneuralnet-production.up.railway.app}
     command: pnpm dev
 
   api:
@@ -27,14 +27,14 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./nn_builder.db}
 
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://www.buildaneural.net,https://buildaneuralnet-production.up.railway.app,https://buildaneural.net}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-www.buildaneural.net,buildaneuralnet-production.up.railway.app,buildaneural.net,localhost,127.0.0.1}
       # 🔒 SECURE: Email configuration loaded from environment variables
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - FRONTEND_URL=${FRONTEND_URL:-https://www.buildaneural.net}
       # Security configuration
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DEBUG=${DEBUG:-false}
