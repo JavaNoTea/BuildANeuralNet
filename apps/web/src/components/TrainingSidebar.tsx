@@ -118,7 +118,7 @@ function TrainingTooltip({ component, position, onClose }: {
             <ul className="text-gray-200 text-xs space-y-1">
               {tips.map((tip, idx) => (
                 <li key={idx} className="flex items-start">
-                  <span className="text-orange-400 mr-2">💡</span>
+                  <span className="text-orange-400 mr-2">•</span>
                   <span>{tip}</span>
                 </li>
               ))}

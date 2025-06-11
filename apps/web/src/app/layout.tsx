@@ -222,12 +222,12 @@ function validateGeneratedCode(code, expectedPatterns) {
 function runCodeValidation(testName) {
   const test = ARCHITECTURE_TESTS[testName];
   if (!test) {
-    console.error(\`❌ Test '\${testName}' not found\`);
+    console.error(\`Test '\${testName}' not found\`);
     return;
   }
 
-  console.log(\`\\n🧪 Validating: \${test.name}\`);
-  console.log(\`📝 \${test.description}\`);
+  console.log(\`\\nValidating: \${test.name}\`);
+  console.log(\`${test.description}\`);
   
   // Try to get generated code from the UI
   const codeElement = document.querySelector('pre') || 
@@ -236,35 +236,35 @@ function runCodeValidation(testName) {
                      document.querySelector('textarea');
   
   if (!codeElement) {
-    console.error("❌ Could not find generated code element. Make sure to generate code first.");
+    console.error("Could not find generated code element. Make sure to generate code first.");
     return;
   }
   
   const generatedCode = codeElement.textContent || codeElement.value;
   
   if (!generatedCode || generatedCode.length < 50) {
-    console.error("❌ No generated code found or code is too short.");
+    console.error("No generated code found or code is too short.");
     return;
   }
   
-  console.log("✅ Found generated code, validating...");
+  console.log("Found generated code, validating...");
   
   const validation = validateGeneratedCode(generatedCode, test.expectedCode);
   
-  console.log(\`\\n📊 Validation Results:\`);
-  console.log(\`   ✅ Passed: \${validation.passed}/\${validation.total}\`);
-  console.log(\`   ❌ Failed: \${validation.failed}/\${validation.total}\`);
-  console.log(\`   📈 Success Rate: \${((validation.passed / validation.total) * 100).toFixed(1)}%\`);
+  console.log(\`\\nValidation Results:\`);
+  console.log(\`   Passed: \${validation.passed}/\${validation.total}\`);
+  console.log(\`   Failed: \${validation.failed}/\${validation.total}\`);
+  console.log(\`   Success Rate: \${((validation.passed / validation.total) * 100).toFixed(1)}%\`);
   
   if (validation.failed > 0) {
-    console.log(\`\\n❌ Failed Patterns:\`);
+    console.log(\`\\nFailed Patterns:\`);
     validation.details.filter(d => !d.matches).forEach(detail => {
       console.log(\`   • \${detail.pattern}\`);
     });
   }
   
   if (validation.passed > 0) {
-    console.log(\`\\n✅ Passed Patterns:\`);
+    console.log(\`\\nPassed Patterns:\`);
     validation.details.filter(d => d.matches).forEach(detail => {
       console.log(\`   • \${detail.pattern}\`);
     });
@@ -274,7 +274,7 @@ function runCodeValidation(testName) {
 }
 
 function runVisualValidation() {
-  console.log("\\n👀 Visual Validation Checklist:");
+  console.log("\nVisual Validation Checklist:");
   console.log("   1. Check edge colors and styles:");
   console.log("      • Default edges: Blue solid lines");
   console.log("      • Residual edges: Green dashed lines"); 
@@ -294,32 +294,32 @@ function runVisualValidation() {
            className.includes('residual');
   });
   
-  console.log(\`\\n📊 Found \${edges.length} total edges, \${residualEdges.length} appear to be residual\`);
+  console.log(\`\\nFound \${edges.length} total edges, \${residualEdges.length} appear to be residual\`);
   
   if (residualEdges.length > 0) {
-    console.log("✅ Residual edges detected visually");
+    console.log("Residual edges detected visually");
   } else {
-    console.log("⚠️  No residual edges found visually");
+    console.log("No residual edges found visually");
   }
 }
 
 function printTestInstructions(testName) {
   const test = ARCHITECTURE_TESTS[testName];
   if (!test) {
-    console.error(\`❌ Test '\${testName}' not found\`);
+    console.error(\`Test '\${testName}' not found\`);
     listAllTests();
     return;
   }
   
-  console.log(\`\\n📋 Instructions for: \${test.name}\`);
-  console.log(\`📝 Description: \${test.description}\`);
-  console.log(\`\\n🔧 Steps:\`);
+  console.log(\`\\nInstructions for: \${test.name}\`);
+  console.log(\`Description: \${test.description}\`);
+  console.log(\`\\nSteps:\`);
   test.instructions.forEach((instruction, index) => {
     console.log(\`   \${instruction}\`);
   });
   
   if (test.visualChecks) {
-    console.log(\`\\n👀 Visual Checks:\`);
+    console.log(\`\\nVisual Checks:\`);
     test.visualChecks.forEach(check => {
       console.log(\`   • \${check}\`);
     });
@@ -327,7 +327,7 @@ function printTestInstructions(testName) {
 }
 
 function listAllTests() {
-  console.log("\\n📋 Available Architecture Tests:");
+  console.log("\nAvailable Architecture Tests:");
   Object.entries(ARCHITECTURE_TESTS).forEach(([key, test]) => {
     console.log(\`   • \${key}: \${test.name}\`);
     console.log(\`     \${test.description}\`);
@@ -336,23 +336,23 @@ function listAllTests() {
 
 function runCompleteTestSuite() {
   console.clear();
-  console.log("🔬 Neural Network Builder - Comprehensive Test Suite");
-  console.log("=" .repeat(60));
-  console.log("📅 Date:", new Date().toLocaleString());
-  console.log("\\n📋 Test Coverage:");
+  console.log("Neural Network Builder - Comprehensive Test Suite");
+  console.log("=".repeat(60));
+  console.log("Date:", new Date().toLocaleString());
+  console.log("\nTest Coverage:");
   console.log("   • Basic Sequential Models (CNN, MLP)");
   console.log("   • Residual Connections (Manual & Auto-detected)");
   console.log("   • Complex Architectures (Inception-like, Element-wise ops)");
   console.log("   • Normalization Layers (BatchNorm)");
   console.log("   • Sequence Models (LSTM)");
   
-  console.log("\\n🎯 How to Use This Test Suite:");
+  console.log("\nHow to Use This Test Suite:");
   console.log("   1. printTestInstructions('testName') - Shows step-by-step instructions");
   console.log("   2. Follow the manual steps to build the architecture");
   console.log("   3. runCodeValidation('testName') - Validates generated code");
   console.log("   4. runVisualValidation() - Checks visual elements");
   
-  console.log("\\n📝 Example Workflow:");
+  console.log("\nExample Workflow:");
   console.log("   printTestInstructions('autoDetectedResidual')");
   console.log("   // Follow the steps manually in the UI");
   console.log("   runCodeValidation('autoDetectedResidual')");
@@ -360,7 +360,7 @@ function runCompleteTestSuite() {
   
   listAllTests();
   
-  console.log("\\n🚀 Start with: printTestInstructions('basicCNN')");
+  console.log("\nStart with: printTestInstructions('basicCNN')");
 }
 
 // Export functions to window for browser console access
@@ -372,8 +372,8 @@ window.listAllTests = listAllTests;
 window.ARCHITECTURE_TESTS = ARCHITECTURE_TESTS;
 
 // Auto-load message
-console.log("🧪 Neural Network Architecture Test Suite Loaded!");
-console.log("📝 Quick Start: runCompleteTestSuite()");
+console.log("Neural Network Architecture Test Suite Loaded!");
+console.log("Quick Start: runCompleteTestSuite()");
             `}
           </Script>
         )}

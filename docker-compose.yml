@@ -22,14 +22,15 @@ services:
     env_file:
       - ./apps/api/.env  # Load environment variables from API .env file
     environment:
-      # 🔒 SECURE: Use environment variables instead of hardcoded secrets
+      # Environment variables for backend services
+      # Use environment variables instead of hardcoded secrets
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./nn_builder.db}
-
+      # Database configuration
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./neural_network_builder.db}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://www.buildaneural.net,https://buildaneuralnet-production.up.railway.app,https://buildaneural.net}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-www.buildaneural.net,buildaneuralnet-production.up.railway.app,buildaneural.net,localhost,127.0.0.1}
-      # 🔒 SECURE: Email configuration loaded from environment variables
+      # Email configuration loaded from environment variables
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
