@@ -7,6 +7,22 @@ import { saveProject, loadProject, SavedState, clearProject } from '@/lib/saveLo
 
 type Mode = 'model' | 'training' | 'code';
 
+// Validation result types for educational feedback
+// These interfaces provide detailed error messages and suggested fixes
+// to help users understand why connections fail and how to fix them
+interface ValidationResult {
+  isValid: boolean;
+  errorMessage?: string;
+  suggestedFix?: string;
+}
+
+interface CodeValidationResult {
+  isValid: boolean;
+  errors: string[];           // Critical issues preventing code generation
+  warnings: string[];         // Non-critical issues that should be noted
+  missingComponents: string[]; // Specific components needed to complete the network
+}
+
 interface FlowState {
   nodes: Node[];
   edges: Edge[];
@@ -23,6 +39,8 @@ interface FlowState {
   setModelNodes: (nodes: Node[] | ((nodes: Node[]) => Node[])) => void;
   setTrainingNodes: (nodes: Node[] | ((nodes: Node[]) => Node[])) => void;
   isValidConnection: (connection: Connection) => boolean;
+  validateConnection: (connection: Connection) => ValidationResult;
+  validateForCodeGeneration: () => CodeValidationResult;
   saveProject: () => void;
   loadProject: () => Promise<void>;
   clearProject: () => void;
@@ -141,34 +159,45 @@ const getShapeDimensions = (shape: string): { channels: number, height: number, 
   return { channels, height, width };
 };
 
-// Helper function to check if a connection is valid in training mode
-const isValidTrainingConnection = (nodes: Node[], connection: Connection): boolean => {
+// Helper function to validate a connection in training mode with detailed feedback
+const validateTrainingConnection = (nodes: Node[], connection: Connection): ValidationResult => {
   if (!connection.source || !connection.target) {
-    return false;
+    return {
+      isValid: false,
+      errorMessage: "Connection is missing source or target node",
+      suggestedFix: "Make sure you are connecting from one node to another"
+    };
   }
 
   const sourceNode = nodes.find(n => n.id === connection.source);
   const targetNode = nodes.find(n => n.id === connection.target);
 
   if (!sourceNode || !targetNode) {
-    return false;
+    return {
+      isValid: false,
+      errorMessage: "Cannot find source or target node",
+      suggestedFix: "Try refreshing the page or recreating the nodes"
+    };
   }
 
   if (!sourceNode.data.isTraining || !targetNode.data.isTraining) {
-    return false;
+    return {
+      isValid: false,
+      errorMessage: "Can only connect training nodes in training mode",
+      suggestedFix: "Switch to model mode to connect model layers, or use training-specific nodes"
+    };
   }
 
   const sourceMeta = getNodeMeta(sourceNode);
   const targetMeta = getNodeMeta(targetNode);
 
   if (!sourceMeta || !targetMeta) {
-    return false;
+    return {
+      isValid: false,
+      errorMessage: "Node metadata not found",
+      suggestedFix: "This node type may not be supported in training mode"
+    };
   }
-
-  // Get source shape
-  const sourceShape = sourceNode.data.registryKey === 'input.dataset'
-    ? sourceNode.data.shape || '[N, C, H, W]'
-    : sourceMeta.outputShape || '[N, C, H, W]';
 
   // Special case for Training Config node
   const isTrainingConfig = sourceNode.data.registryKey === 'training.config';
@@ -179,6 +208,7 @@ const isValidTrainingConnection = (nodes: Node[], connection: Connection): boole
   const targetInputType = targetMeta.inputType;
   let sourceOutputType = sourceMeta.outputType;
   const sourceOutputTypes = sourceMeta.outputTypes || [];
+  
   if (isTrainingConfig) {
     if (isMetricTarget) {
       sourceOutputType = 'prediction';
@@ -187,58 +217,160 @@ const isValidTrainingConnection = (nodes: Node[], connection: Connection): boole
     }
   }
 
-  // For Training Config connections, check against the dynamically selected output type
-  let isValidType = sourceOutputType === targetInputType || sourceOutputTypes.includes(targetInputType || '');
-
   // Validate type compatibility
-
+  const isValidType = sourceOutputType === targetInputType || sourceOutputTypes.includes(targetInputType || '');
+  
   if (!isValidType) {
-    return false;
+    return {
+      isValid: false,
+      errorMessage: `Type mismatch: ${sourceNode.data.label} outputs "${sourceOutputType}" but ${targetNode.data.label} expects "${targetInputType}"`,
+      suggestedFix: `Try connecting to a node that accepts "${sourceOutputType}" input, or use a different source node that outputs "${targetInputType}"`
+    };
   }
 
   // Validate workflow order
-  const isValidWorkflow = sourceNode.data.registryKey === 'input.dataset'
-    ? targetMeta.category === 'DataAugmentation' || targetMeta.category === 'Training'
-    : sourceMeta.category === 'DataAugmentation'
-    ? targetMeta.category === 'DataAugmentation' || targetMeta.category === 'Training'
-    : sourceMeta.category === 'Training'
-    ? targetMeta.category === 'Optimization' || targetMeta.category === 'Metrics' || targetMeta.category === 'Callbacks'
-    : sourceMeta.category === 'Optimization'
-    ? targetMeta.category === 'Training' || targetMeta.category === 'Callbacks'
-    : sourceMeta.category === 'Metrics'
-    ? targetMeta.category === 'Callbacks'
-    : sourceMeta.category === 'Callbacks'
-    ? false // Callbacks don't output to anything else
-    : false;
-
-  if (!isValidWorkflow) {
-    return false;
+  let isValidWorkflow = false;
+  let workflowError = "";
+  
+  if (sourceNode.data.registryKey === 'input.dataset') {
+    isValidWorkflow = targetMeta.category === 'DataAugmentation' || targetMeta.category === 'Training';
+    if (!isValidWorkflow) {
+      workflowError = "Dataset can only connect to Data Augmentation or Training nodes";
+    }
+  } else if (sourceMeta.category === 'DataAugmentation') {
+    isValidWorkflow = targetMeta.category === 'DataAugmentation' || targetMeta.category === 'Training';
+    if (!isValidWorkflow) {
+      workflowError = "Data Augmentation nodes can only connect to other Data Augmentation or Training nodes";
+    }
+  } else if (sourceMeta.category === 'Training') {
+    isValidWorkflow = targetMeta.category === 'Optimization' || targetMeta.category === 'Metrics' || targetMeta.category === 'Callbacks';
+    if (!isValidWorkflow) {
+      workflowError = "Training nodes can only connect to Optimization, Metrics, or Callback nodes";
+    }
+  } else if (sourceMeta.category === 'Optimization') {
+    isValidWorkflow = targetMeta.category === 'Training' || targetMeta.category === 'Callbacks';
+    if (!isValidWorkflow) {
+      workflowError = "Optimization nodes can only connect to Training or Callback nodes";
+    }
+  } else if (sourceMeta.category === 'Metrics') {
+    isValidWorkflow = targetMeta.category === 'Callbacks';
+    if (!isValidWorkflow) {
+      workflowError = "Metrics nodes can only connect to Callback nodes";
+    }
+  } else if (sourceMeta.category === 'Callbacks') {
+    workflowError = "Callback nodes cannot connect to other nodes (they are endpoints)";
+  } else {
+    workflowError = `Unknown category: ${sourceMeta.category}`;
   }
 
-  return true;
+  if (!isValidWorkflow) {
+    return {
+      isValid: false,
+      errorMessage: workflowError,
+      suggestedFix: "Follow the training workflow: Dataset → Data Augmentation → Training → Optimization/Metrics → Callbacks"
+    };
+  }
+
+  return { isValid: true };
 };
 
-// Helper function to check if a connection is valid in model mode
-const isValidModelConnection = (nodes: Node[], connection: Connection): boolean => {
-  if (!connection.source || !connection.target) return false;
+// Helper function to check if a connection is valid in training mode (backward compatibility)
+const isValidTrainingConnection = (nodes: Node[], connection: Connection): boolean => {
+  return validateTrainingConnection(nodes, connection).isValid;
+};
+
+// Helper function to validate a connection in model mode with detailed feedback
+const validateModelConnection = (nodes: Node[], connection: Connection): ValidationResult => {
+  if (!connection.source || !connection.target) {
+    return {
+      isValid: false,
+      errorMessage: "Connection is missing source or target node",
+      suggestedFix: "Make sure you are connecting from one node to another"
+    };
+  }
 
   const sourceNode = nodes.find(n => n.id === connection.source);
   const targetNode = nodes.find(n => n.id === connection.target);
 
-  if (!sourceNode || !targetNode) return false;
+  if (!sourceNode || !targetNode) {
+    return {
+      isValid: false,
+      errorMessage: "Cannot find source or target node",
+      suggestedFix: "Try refreshing the page or recreating the nodes"
+    };
+  }
 
   // Only allow connections between model nodes (non-training nodes)
-  if (sourceNode.data.isTraining || targetNode.data.isTraining) return false;
+  if (sourceNode.data.isTraining || targetNode.data.isTraining) {
+    return {
+      isValid: false,
+      errorMessage: "Cannot connect training nodes in model mode",
+      suggestedFix: "Switch to training mode to connect training-specific nodes"
+    };
+  }
 
-  // In model mode, any layer can connect to any other layer
-  // except dataset nodes can only be source nodes
-  if (targetNode.data.registryKey === 'input.dataset') return false;
+  // Dataset nodes can only be source nodes
+  if (targetNode.data.registryKey === 'input.dataset') {
+    return {
+      isValid: false,
+      errorMessage: "Cannot connect to a dataset node",
+      suggestedFix: "Dataset nodes provide input data - connect FROM the dataset TO other layers"
+    };
+  }
 
-  // For sum connections, allow multiple inputs to the same target
-  // For residual connections, allow skip connections
-  // For default connections, maintain standard validation
-  
-  return true;
+  // Check if source node can connect to target node based on layer types
+  const sourceMeta = getNodeMeta(sourceNode);
+  const targetMeta = getNodeMeta(targetNode);
+
+  if (!sourceMeta || !targetMeta) {
+    return {
+      isValid: false,
+      errorMessage: "Node metadata not found",
+      suggestedFix: "This node type may not be supported in model mode"
+    };
+  }
+
+  // Shape compatibility check for specific layer types
+  if (sourceNode.data.registryKey === 'input.dataset') {
+    // Dataset can connect to any layer
+    return { isValid: true };
+  }
+
+  // Check for shape compatibility warnings
+  if (sourceMeta.outputShape && targetMeta.inputShape) {
+    if (sourceMeta.outputShape !== targetMeta.inputShape && 
+        !sourceMeta.outputShape.includes('N') && !targetMeta.inputShape.includes('N')) {
+      return {
+        isValid: false,
+        errorMessage: `Shape mismatch: ${sourceNode.data.label} outputs ${sourceMeta.outputShape} but ${targetNode.data.label} expects ${targetMeta.inputShape}`,
+        suggestedFix: "Add a reshape layer or adjust the layer parameters to match dimensions"
+      };
+    }
+  }
+
+  // Special cases for specific layer combinations
+  if (sourceNode.data.registryKey === 'nn.Conv2d' && targetNode.data.registryKey === 'nn.Linear') {
+    return {
+      isValid: false,
+      errorMessage: "Cannot directly connect Conv2d to Linear layer",
+      suggestedFix: "Add a Flatten layer between Conv2d and Linear layers to reshape the tensor"
+    };
+  }
+
+  if (sourceNode.data.registryKey === 'nn.Linear' && targetNode.data.registryKey === 'nn.Conv2d') {
+    return {
+      isValid: false,
+      errorMessage: "Cannot directly connect Linear to Conv2d layer",
+      suggestedFix: "Linear layers output 1D tensors while Conv2d expects 2D feature maps. Consider using Conv1d or adding reshape operations"
+    };
+  }
+
+  return { isValid: true };
+};
+
+// Helper function to check if a connection is valid in model mode (backward compatibility)
+const isValidModelConnection = (nodes: Node[], connection: Connection): boolean => {
+  return validateModelConnection(nodes, connection).isValid;
 };
 
 // Helper function to create a training dataset node
@@ -356,6 +488,127 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     return state.mode === 'training' 
       ? isValidTrainingConnection(state.nodes, connection)
       : isValidModelConnection(state.nodes, connection);
+  },
+  validateConnection: (connection) => {
+    const state = get();
+    return state.mode === 'training' 
+      ? validateTrainingConnection(state.nodes, connection)
+      : validateModelConnection(state.nodes, connection);
+  },
+  validateForCodeGeneration: () => {
+    const state = get();
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const missingComponents: string[] = [];
+
+    // Check for dataset node
+    const datasetNodes = state.nodes.filter(n => n.data.registryKey === 'input.dataset');
+    if (datasetNodes.length === 0) {
+      errors.push("No dataset node found");
+      missingComponents.push("Add a Dataset node to provide input data");
+    } else if (datasetNodes.length > 1) {
+      warnings.push("Multiple dataset nodes found - only the first one will be used");
+    }
+
+    // Check for model layers (non-dataset, non-training nodes)
+    const modelLayers = state.nodes.filter(n => 
+      n.data.registryKey !== 'input.dataset' && !n.data.isTraining
+    );
+    if (state.mode === 'model' && modelLayers.length === 0) {
+      errors.push("No model layers found");
+      missingComponents.push("Add neural network layers (Conv2d, Linear, etc.) to build your model");
+    }
+
+    // Check for disconnected nodes
+    const disconnectedNodes = state.nodes.filter(node => {
+      const hasIncoming = state.edges.some(edge => edge.target === node.id);
+      const hasOutgoing = state.edges.some(edge => edge.source === node.id);
+      
+      // Dataset nodes only need outgoing connections
+      if (node.data.registryKey === 'input.dataset') {
+        return !hasOutgoing;
+      }
+      
+      // Training callbacks only need incoming connections
+      if (node.data.isTraining) {
+        const meta = getNodeMeta(node);
+        if (meta?.category === 'Callbacks') {
+          return !hasIncoming;
+        }
+      }
+      
+      // All other nodes should have both incoming and outgoing (except final output layers)
+      return !hasIncoming;
+    });
+
+    if (disconnectedNodes.length > 0) {
+      const nodeNames = disconnectedNodes.map(n => n.data.label).join(', ');
+      warnings.push(`Disconnected nodes found: ${nodeNames}`);
+      missingComponents.push("Connect all nodes in your network - data should flow from dataset through all layers");
+    }
+
+    // Check for missing parameters
+    const nodesWithMissingParams = state.nodes.filter(node => {
+      const meta = getNodeMeta(node);
+      if (!meta) return false;
+      
+      // Check if required parameters are missing or empty
+      const params = node.data.params || {};
+      
+      // Example: Conv2d requires out_channels
+      if (node.data.registryKey === 'nn.Conv2d' && (!params.out_channels || params.out_channels <= 0)) {
+        return true;
+      }
+      
+      // Example: Linear requires out_features
+      if (node.data.registryKey === 'nn.Linear' && (!params.out_features || params.out_features <= 0)) {
+        return true;
+      }
+      
+      return false;
+    });
+
+    if (nodesWithMissingParams.length > 0) {
+      const nodeNames = nodesWithMissingParams.map(n => n.data.label).join(', ');
+      errors.push(`Nodes with missing required parameters: ${nodeNames}`);
+      missingComponents.push("Configure all required parameters in the property panel (right-click and select 'Properties')");
+    }
+
+    // Training mode specific checks
+    if (state.mode === 'training') {
+      const trainingConfig = state.nodes.find(n => n.data.registryKey === 'training.config');
+      if (!trainingConfig) {
+        errors.push("No training configuration found");
+        missingComponents.push("Add a Training Config node to define loss function and training setup");
+      }
+
+      const optimizer = state.nodes.find(n => n.data.isTraining && getNodeMeta(n)?.category === 'Optimization');
+      if (!optimizer) {
+        warnings.push("No optimizer found");
+        missingComponents.push("Add an optimizer (Adam, SGD, etc.) for training");
+      }
+    }
+
+    // Model mode specific checks
+    if (state.mode === 'model') {
+      // Check for proper model flow
+      const hasOutput = state.nodes.some(node => {
+        const outgoingEdges = state.edges.filter(edge => edge.source === node.id);
+        return outgoingEdges.length === 0 && node.data.registryKey !== 'input.dataset';
+      });
+      
+      if (!hasOutput) {
+        warnings.push("No clear output layer identified");
+        missingComponents.push("Ensure your model has a final layer that produces the desired output");
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      missingComponents
+    };
   },
   saveProject: () => {
     const state = get();

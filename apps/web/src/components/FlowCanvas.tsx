@@ -183,6 +183,7 @@ function FlowCanvasInner() {
   const [consoleOutput, setConsoleOutput] = useState<string>('');
   const [showExecutionPopup, setShowExecutionPopup] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const [connectMode, setConnectMode] = useState(false);
   const [connectSource, setConnectSource] = useState<string | null>(null);
@@ -304,8 +305,11 @@ function FlowCanvasInner() {
 
   const onConnect = useCallback(
     (params: Connection) => {
-      const isValid = useFlowStore.getState().isValidConnection(params);
-      if (!isValid) {
+      const validation = useFlowStore.getState().validateConnection(params);
+      if (!validation.isValid) {
+        setValidationError(validation.errorMessage || 'Invalid connection');
+        // Clear error after 5 seconds
+        setTimeout(() => setValidationError(null), 5000);
         return;
       }
       const newEdge = {
@@ -324,22 +328,32 @@ function FlowCanvasInner() {
     const sourceNode = state.nodes.find((n: Node<NodeData>) => n.id === nodeId);
     if (!sourceNode) return;
 
-    // Add visual feedback by highlighting valid target nodes
-    const validTargets = state.nodes.filter((n: Node<NodeData>) => {
-      if (n.id === nodeId) return false;
-      return state.isValidConnection({
+    // Add visual feedback by highlighting valid target nodes and showing warnings for invalid ones
+    const nodeValidation = state.nodes.map((n: Node<NodeData>) => {
+      if (n.id === nodeId) return { node: n, isValid: false, className: '' };
+      
+      const validation = state.validateConnection({
         source: nodeId,
         target: n.id,
         sourceHandle: 'output',
         targetHandle: 'input'
       });
+      
+      return {
+        node: n,
+        isValid: validation.isValid,
+        className: validation.isValid ? 'valid-target' : 'invalid-target'
+      };
     });
 
     setNodes((nodes: Node<NodeData>[]) => 
-      nodes.map((node: Node<NodeData>) => ({
-        ...node,
-        className: validTargets.some((t: Node<NodeData>) => t.id === node.id) ? 'valid-target' : ''
-      }))
+      nodes.map((node: Node<NodeData>) => {
+        const validation = nodeValidation.find(v => v.node.id === node.id);
+        return {
+          ...node,
+          className: validation?.className || ''
+        };
+      })
     );
   }, [setNodes]);
 
@@ -1898,6 +1912,21 @@ function FlowCanvasInner() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
+                      const validation = useFlowStore.getState().validateForCodeGeneration();
+                      if (!validation.isValid) {
+                        const allIssues = [
+                          ...validation.errors,
+                          ...validation.missingComponents
+                        ].join('\n\n');
+                        setValidationError(`Cannot generate code:\n\n${allIssues}`);
+                        setTimeout(() => setValidationError(null), 8000);
+                        return;
+                      }
+                      if (validation.warnings.length > 0) {
+                        const warnings = validation.warnings.join('\n');
+                        setValidationError(`Code generated with warnings:\n\n${warnings}`);
+                        setTimeout(() => setValidationError(null), 5000);
+                      }
                       const generatedCode = generatePyTorchCode();
                       setCode(generatedCode);
                     }}
@@ -2107,6 +2136,71 @@ function FlowCanvasInner() {
           </button>
         </div>
       </div>
+
+      {/* Validation Error Display */}
+      {validationError && (
+        <div className={`fixed top-4 right-4 max-w-md rounded-lg p-4 shadow-lg z-50 ${
+          validationError.includes('warnings') 
+            ? 'bg-yellow-50 border border-yellow-200' 
+            : 'bg-red-50 border border-red-200'
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+              validationError.includes('warnings') 
+                ? 'bg-yellow-100' 
+                : 'bg-red-100'
+            }`}>
+              <FaQuestionCircle className={`w-3 h-3 ${
+                validationError.includes('warnings') 
+                  ? 'text-yellow-600' 
+                  : 'text-red-600'
+              }`} />
+            </div>
+            <div className="flex-1">
+              <h3 className={`text-sm font-semibold mb-1 ${
+                validationError.includes('warnings') 
+                  ? 'text-yellow-800' 
+                  : 'text-red-800'
+              }`}>
+                {validationError.includes('Cannot generate code') 
+                  ? 'Validation Error' 
+                  : validationError.includes('warnings')
+                  ? 'Code Generated with Warnings'
+                  : 'Connection Error'}
+              </h3>
+              <p className={`text-sm whitespace-pre-line ${
+                validationError.includes('warnings') 
+                  ? 'text-yellow-700' 
+                  : 'text-red-700'
+              }`}>
+                {validationError}
+              </p>
+              <button 
+                onClick={() => setValidationError(null)}
+                className={`mt-2 text-xs hover:underline ${
+                  validationError.includes('warnings') 
+                    ? 'text-yellow-600 hover:text-yellow-800' 
+                    : 'text-red-600 hover:text-red-800'
+                }`}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Right-click Hint */}
+      {mode !== 'code' && (
+        <div className="fixed top-4 left-4 bg-blue-50 border border-blue-200 rounded-lg p-3 shadow-lg z-40">
+          <div className="flex items-center gap-2">
+            <FaQuestionCircle className="w-4 h-4 text-blue-600" />
+            <span className="text-sm text-blue-800">
+              <strong>Tip:</strong> Right-click on toolbar items for more info!
+            </span>
+          </div>
+        </div>
+      )}
 
       {selectedId && mode !== 'code' && (
         <PropertyPanel nodeId={selectedId} onClose={() => setSelectedId(null)} />
