@@ -1,24 +1,26 @@
-# Simple Railway-compatible Dockerfile
-FROM python:3.11-slim
+# Optimized lightweight Dockerfile for Railway
+FROM python:3.11-alpine
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install only essential system dependencies
+RUN apk add --no-cache \
     gcc \
+    musl-dev \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/cache/apk/*
 
 # Set working directory
 WORKDIR /app
 
 # Copy and install Python dependencies
 COPY apps/api/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip cache purge
 
 # Copy backend code
 COPY apps/api/ ./
 
 # Create non-root user for security
-RUN useradd --create-home --shell /bin/bash app
+RUN adduser -D app
 RUN chown -R app:app /app
 USER app
 
