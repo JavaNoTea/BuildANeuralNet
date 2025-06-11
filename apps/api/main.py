@@ -2,8 +2,10 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+import os
 from datetime import timedelta, datetime
 import uuid
 import json
@@ -536,3 +538,21 @@ async def autosave_model(
         db.rollback()
         # Don't raise error for autosave - just log and return graceful failure
         return {"message": "Autosave failed, but you can continue working", "error": str(e)}
+
+# Mount static files for frontend
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    
+    # Catch-all route to serve React app for client-side routing
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # Don't serve frontend for API routes
+        if full_path.startswith("api/") or full_path.startswith("auth/") or full_path.startswith("models/") or full_path == "ping":
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        # Serve index.html for all non-API routes
+        index_path = "static/index.html"
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        else:
+            raise HTTPException(status_code=404, detail="Frontend not found")

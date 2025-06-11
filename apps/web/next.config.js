@@ -1,7 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable standalone output for Docker deployment
-  output: 'standalone',
+  // Enable static export for deployment
+  output: 'export',
+  trailingSlash: true,
+  images: {
+    unoptimized: true
+  },
   
   // Optimize for production
   swcMinify: true,
