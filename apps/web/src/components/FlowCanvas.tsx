@@ -202,17 +202,27 @@ function FlowCanvasInner() {
   const { screenToFlowPosition } = useReactFlow();
   const [connectMode, setConnectMode] = useState(false);
   const [connectSource, setConnectSource] = useState<string | null>(null);
-  const [edgeType, setEdgeType] = useState<'default' | 'residual' | 'sum'>('default');
+  // Edge type is now automatically detected
   
   // Auto-detect and update residual edges based on graph structure
+  const autoDetectResidualEdgesRef = useRef<NodeJS.Timeout | null>(null);
+  
   useEffect(() => {
-    const updateResidualEdges = () => {
+    // Clear any pending auto-detection
+    if (autoDetectResidualEdgesRef.current) {
+      clearTimeout(autoDetectResidualEdgesRef.current);
+    }
+    
+    // Debounce the auto-detection to prevent infinite loops
+    autoDetectResidualEdgesRef.current = setTimeout(() => {
       const modelNodes = nodes.filter(n => !n.data.isTraining);
       const modelEdges = edges.filter(e => {
         const sourceNode = nodes.find(n => n.id === e.source);
         const targetNode = nodes.find(n => n.id === e.target);
         return !sourceNode?.data.isTraining && !targetNode?.data.isTraining;
       });
+      
+      if (modelNodes.length === 0 || modelEdges.length === 0) return;
       
       // Create a topological order for model nodes
       const createTopologicalOrder = (nodes: Node[], edges: any[]) => {
@@ -252,6 +262,8 @@ function FlowCanvasInner() {
       
       // Detect residual connections and update edge types
       let detectedResidualCount = 0;
+      let hasChanges = false;
+      
       const updatedEdges = edges.map(edge => {
         const sourceNode = nodes.find(n => n.id === edge.source);
         const targetNode = nodes.find(n => n.id === edge.target);
@@ -278,11 +290,11 @@ function FlowCanvasInner() {
               return targetIndex - srcIdx;
             }));
             
-            if (distance > shortestDistance + 1) {
+            // Mark as residual if this edge skips any intermediate layers
+            if (distance > shortestDistance && distance > 1 && edge.type !== 'residual') {
               // This edge skips layers, mark as residual
-              if (edge.type !== 'residual') {
-                detectedResidualCount++;
-              }
+              detectedResidualCount++;
+              hasChanges = true;
               return { ...edge, type: 'residual' };
             }
           }
@@ -291,20 +303,25 @@ function FlowCanvasInner() {
         return edge;
       });
       
-      // Provide user feedback about detected residual connections
-      if (detectedResidualCount > 0) {
-        setResidualConnectionInfo(`Auto-detected ${detectedResidualCount} residual connection${detectedResidualCount > 1 ? 's' : ''} (skip connections)`);
-        setTimeout(() => setResidualConnectionInfo(null), 3000);
+      // Only update if there are actual changes to prevent infinite loops
+      if (hasChanges) {
+        console.log('Auto-detection: updating edges with residual connections', { detectedResidualCount, updatedEdges: updatedEdges.map(e => ({ id: e.id, source: e.source, target: e.target, type: e.type })) });
+        setEdges(updatedEdges);
+        
+        // Provide user feedback about detected residual connections
+        if (detectedResidualCount > 0) {
+          setResidualConnectionInfo(`Auto-detected ${detectedResidualCount} residual connection${detectedResidualCount > 1 ? 's' : ''} (skip connections)`);
+          setTimeout(() => setResidualConnectionInfo(null), 3000);
+        }
       }
-      
-      setEdges(updatedEdges);
-    };
+    }, 500); // 500ms debounce
     
-    // Run auto-detection when nodes or edges change
-    if (nodes.length > 0 && edges.length > 0) {
-      updateResidualEdges();
-    }
-  }, [nodes, edges, setEdges]);
+    return () => {
+      if (autoDetectResidualEdgesRef.current) {
+        clearTimeout(autoDetectResidualEdgesRef.current);
+      }
+    };
+  }, [nodes, edges]); // Removed setEdges from dependencies to prevent infinite loop
   
   // Track polling state to prevent memory leaks and infinite loops
   const pollingRef = useRef<{
@@ -432,11 +449,11 @@ function FlowCanvasInner() {
       const newEdge = {
         ...params,
         // In training mode, always use default edge type
-        type: mode === 'training' ? 'default' : edgeType,
+        type: 'default', // Type will be auto-detected after creation
       };
       setEdges((eds: Edge[]) => addEdge(newEdge, eds));
     },
-    [setEdges, edgeType, mode]
+          [setEdges, mode]
   );
 
   // Add visual feedback for valid/invalid connections
@@ -500,7 +517,7 @@ function FlowCanvasInner() {
     setSelectedEdgeId(edge.id);
     setSelectedId(null);
     // Set the dropdown to show the selected edge's type
-    setEdgeType((edge.type as 'default' | 'residual' | 'sum') || 'default');
+            // Edge type is automatically detected, no manual setting needed
   }, []);
 
   // Update node click handler to clear edge selection
@@ -1033,8 +1050,11 @@ function FlowCanvasInner() {
     });
     
     // Also handle manually marked edges for backwards compatibility
+    console.log('Code generation - checking edge types:', modelEdges.map(e => ({ id: e.id, source: e.source, target: e.target, type: e.type })));
+    
     modelEdges.forEach(edge => {
       if (edge.type === 'residual') {
+        console.log(`Found residual edge in code generation: ${edge.source} -> ${edge.target}`);
         if (!residualSources.has(edge.target)) {
           residualSources.set(edge.target, []);
         }
@@ -1048,6 +1068,8 @@ function FlowCanvasInner() {
         sumSources.get(edge.target)!.push(edge.source);
       }
     });
+    
+    console.log('Residual sources for code generation:', residualSources);
     
     // For each node in order, generate the forward pass code
     modelOrder.forEach((node, index) => {
@@ -2258,47 +2280,11 @@ function FlowCanvasInner() {
         )}
         {/* Bottom toolbar */}
         <div className="fixed bottom-0 left-0 w-full flex justify-center items-center bg-white border-t py-2 z-20 shadow gap-2">
-          {/* Edge type selector - only show in model mode */}
-          {mode === 'model' && (
-            <div className="flex items-center gap-2 mr-4">
-              <span className="text-sm font-medium text-gray-900">
-                {selectedEdgeId ? "Selected Edge Type:" : "Edge Type:"}
-              </span>
-              <select 
-                value={edgeType} 
-                onChange={(e) => {
-                  const newType = e.target.value as 'default' | 'residual' | 'sum';
-                  setEdgeType(newType);
-                  
-                  // If an edge is selected, update its type
-                  if (selectedEdgeId) {
-                    setEdges((eds: Edge[]) => 
-                      eds.map(edge => 
-                        edge.id === selectedEdgeId 
-                          ? { ...edge, type: newType }
-                          : edge
-                      )
-                    );
-                  }
-                }}
-                className={`text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 ${
-                  selectedEdgeId ? 'ring-2 ring-blue-200 border-blue-300' : ''
-                }`}
-              >
-                <option value="default">Default</option>
-                <option value="residual">Residual</option>
-                <option value="sum">Sum</option>
-              </select>
-            </div>
-          )}
-          
           {/* Mode buttons */}
           <button
             className={`mx-2 p-2 rounded-full border-2 ${mode === 'model' ? 'bg-blue-100 border-blue-600' : 'bg-gray-100 border-gray-300'} transition-colors`}
             onClick={() => {
               setMode('model');
-              // Reset edge type when switching modes
-              if (mode !== 'model') setEdgeType('default');
             }}
             title="Model Mode"
           >
@@ -2309,8 +2295,6 @@ function FlowCanvasInner() {
             onClick={() => {
               if (hasDatasetNode) {
                 setMode('training');
-                // Reset edge type when switching to training mode
-                setEdgeType('default');
               }
             }}
             title={hasDatasetNode ? 'Training Mode' : 'Add a dataset node first'}
@@ -2322,8 +2306,6 @@ function FlowCanvasInner() {
             className={`mx-2 p-2 rounded-full border-2 ${mode === 'code' ? 'bg-blue-100 border-blue-600' : 'bg-gray-100 border-gray-300'} transition-colors`}
             onClick={() => {
               setMode('code');
-              // Reset edge type when switching modes
-              if (mode === 'model') setEdgeType('default');
             }}
             title="Code Mode"
           >

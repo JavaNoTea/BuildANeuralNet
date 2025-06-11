@@ -219,7 +219,7 @@ const validateTrainingConnection = (nodes: Node[], connection: Connection): Vali
 
   // Validate type compatibility
   const isValidType = sourceOutputType === targetInputType || sourceOutputTypes.includes(targetInputType || '');
-  
+
   if (!isValidType) {
     return {
       isValid: false,

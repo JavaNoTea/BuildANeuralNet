@@ -20,27 +20,71 @@ export default function Home() {
   // Initialize authentication on app load
   useEffect(() => {
     const initializeAuth = async () => {
-      setLoading(true);
-      
-      // Check if we have stored tokens
-      if (accessToken) {
-        try {
-          // Validate token by getting current user
-          const user = await api.getCurrentUser();
-          // Token is valid, update auth state with user data
-          setAuth(user, accessToken, useAuthStore.getState().refreshToken || '');
-        } catch (error) {
-          console.log('Stored token invalid, clearing auth');
-          // Token is invalid, clear stored auth
-          logout();
-        }
+      // Ensure we're in the browser before proceeding
+      if (typeof window === 'undefined') {
+        setAuthInitialized(true);
+        return;
       }
       
-      setLoading(false);
-      setAuthInitialized(true);
+      setLoading(true);
+      
+      try {
+        // Check if we have stored tokens
+        const isDevelopment = process.env.NODE_ENV === 'development';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+        
+        // Skip auth check in development if no API URL is configured
+        if (isDevelopment && !apiUrl) {
+          console.log('Development mode without API URL - skipping auth check');
+          setLoading(false);
+          setAuthInitialized(true);
+          return;
+        }
+        
+        if (accessToken) {
+          // Add shorter timeout for faster development experience
+          const timeoutMs = isDevelopment ? 2000 : 5000;
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Auth check timeout')), timeoutMs)
+          );
+          
+          const authPromise = api.getCurrentUser();
+          
+          try {
+            // Race between API call and timeout
+            const user = await Promise.race([authPromise, timeoutPromise]);
+            // Token is valid, update auth state with user data
+            setAuth(user, accessToken, useAuthStore.getState().refreshToken || '');
+          } catch (authError) {
+            console.log('Stored token invalid or timeout, clearing auth:', authError);
+            // Token is invalid or timed out, clear stored auth
+            logout();
+          }
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        // On any error, just continue without auth
+      } finally {
+        // Always complete initialization
+        setLoading(false);
+        setAuthInitialized(true);
+      }
     };
 
+    // Start initialization immediately
     initializeAuth();
+    
+    // Shorter fallback timeout for development
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const fallbackTimeout = setTimeout(() => {
+      console.warn('Auth initialization taking too long, forcing completion');
+      setLoading(false);
+      setAuthInitialized(true);
+    }, isDevelopment ? 3000 : 10000); // 3 seconds in dev, 10 seconds in production
+    
+    return () => {
+      clearTimeout(fallbackTimeout);
+    };
   }, []); // Run once on mount
 
   // Show auth modal on first visit (only after auth is initialized)
@@ -87,8 +131,8 @@ export default function Home() {
     };
   }, [isAuthenticated]);
 
-  // Show loading screen while checking authentication
-  if (isLoading || !authInitialized) {
+  // Show loading screen while checking authentication (with timeout protection)
+  if (!authInitialized) {
     return (
       <div className="flex h-screen bg-gray-100 items-center justify-center">
         <div className="text-center">

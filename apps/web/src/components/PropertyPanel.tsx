@@ -242,8 +242,28 @@ export default function PropertyPanel({ nodeId, onClose }: { nodeId: string; onC
                 min={p.min}
                 max={p.max}
                 step={p.type === 'float' ? 0.1 : 1}
-                value={node.data.params[p.name] ?? ''}
-                onChange={(e) => updateParam(p.name, p.type === 'float' ? parseFloat(e.target.value) : parseInt(e.target.value))}
+                value={
+                  // Handle NaN values by converting to empty string
+                  (() => {
+                    const val = node.data.params[p.name];
+                    if (val === null || val === undefined || Number.isNaN(val)) {
+                      return '';
+                    }
+                    return val;
+                  })()
+                }
+                onChange={(e) => {
+                  const rawValue = e.target.value;
+                  if (rawValue === '') {
+                    updateParam(p.name, undefined);
+                  } else {
+                    const parsedValue = p.type === 'float' ? parseFloat(rawValue) : parseInt(rawValue);
+                    // Only update if the parsed value is valid
+                    if (!Number.isNaN(parsedValue)) {
+                      updateParam(p.name, parsedValue);
+                    }
+                  }
+                }}
                 className="w-full rounded border px-2 py-1 text-gray-900"
               />
             ) : p.type === 'bool' ? (
