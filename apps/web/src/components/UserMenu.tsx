@@ -42,7 +42,18 @@ export default function UserMenu() {
             
             <button
               onClick={() => {
-                // TODO: Implement saved models modal
+                // Show saved models in browser localStorage
+                const savedModels = Object.keys(localStorage).filter(key => key.startsWith('nn-model-'));
+                if (savedModels.length === 0) {
+                  alert('No saved models found. Save your current model using Ctrl+S to create local saves.');
+                } else {
+                  const modelList = savedModels.map(key => {
+                    const modelData = JSON.parse(localStorage.getItem(key) || '{}');
+                    const timestamp = new Date(modelData.timestamp || Date.now()).toLocaleString();
+                    return `• ${modelData.name || key.replace('nn-model-', '')} (${timestamp})`;
+                  }).join('\n');
+                  alert(`Saved Models (${savedModels.length}):\n\n${modelList}\n\nNote: Models are saved locally in your browser. Use the "Load Model" button in the toolbar to restore a saved model.`);
+                }
                 setIsOpen(false);
               }}
               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-900"

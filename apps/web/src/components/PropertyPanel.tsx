@@ -242,7 +242,7 @@ export default function PropertyPanel({ nodeId, onClose }: { nodeId: string; onC
                 min={p.min}
                 max={p.max}
                 step={p.type === 'float' ? 0.1 : 1}
-                value={node.data.params[p.name]}
+                value={node.data.params[p.name] ?? ''}
                 onChange={(e) => updateParam(p.name, p.type === 'float' ? parseFloat(e.target.value) : parseInt(e.target.value))}
                 className="w-full rounded border px-2 py-1 text-gray-900"
               />

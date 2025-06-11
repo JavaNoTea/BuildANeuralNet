@@ -135,7 +135,6 @@ const getShapeDimensions = (shape: string): { channels: number, height: number, 
   if (isNaN(channels) || channels <= 0 || 
       isNaN(height) || height <= 0 || 
       isNaN(width) || width <= 0) {
-    console.log('DEBUG: Invalid dimensions', { channels, height, width });
     return null;
   }
 
@@ -145,7 +144,6 @@ const getShapeDimensions = (shape: string): { channels: number, height: number, 
 // Helper function to check if a connection is valid in training mode
 const isValidTrainingConnection = (nodes: Node[], connection: Connection): boolean => {
   if (!connection.source || !connection.target) {
-    console.log('DEBUG: Missing source or target connection');
     return false;
   }
 
@@ -153,12 +151,10 @@ const isValidTrainingConnection = (nodes: Node[], connection: Connection): boole
   const targetNode = nodes.find(n => n.id === connection.target);
 
   if (!sourceNode || !targetNode) {
-    console.log('DEBUG: Could not find source or target node', { sourceId: connection.source, targetId: connection.target });
     return false;
   }
 
   if (!sourceNode.data.isTraining || !targetNode.data.isTraining) {
-    console.log('DEBUG: Both nodes must be training nodes');
     return false;
   }
 
@@ -166,10 +162,6 @@ const isValidTrainingConnection = (nodes: Node[], connection: Connection): boole
   const targetMeta = getNodeMeta(targetNode);
 
   if (!sourceMeta || !targetMeta) {
-    console.log('DEBUG: Could not find metadata for nodes', {
-      source: sourceNode.data.registryKey,
-      target: targetNode.data.registryKey
-    });
     return false;
   }
 
@@ -198,36 +190,9 @@ const isValidTrainingConnection = (nodes: Node[], connection: Connection): boole
   // For Training Config connections, check against the dynamically selected output type
   let isValidType = sourceOutputType === targetInputType || sourceOutputTypes.includes(targetInputType || '');
 
-  // Debug logging for type validation
-  console.log('[DEBUG isValidTrainingConnection]', {
-    sourceNode: sourceNode.data.registryKey,
-    targetNode: targetNode.data.registryKey,
-    sourceMeta,
-    targetMeta,
-    sourceOutputType,
-    sourceOutputTypes,
-    targetInputType,
-    isTrainingConfig,
-    isMetricTarget,
-    isOptimizerTarget,
-    isValidType
-  });
+  // Validate type compatibility
 
   if (!isValidType) {
-    console.log('DEBUG: Type mismatch', {
-      sourceNode: sourceNode.data.registryKey,
-      targetNode: targetNode.data.registryKey,
-      sourceOutput: sourceOutputType,
-      sourceOutputs: sourceOutputTypes,
-      targetInput: targetInputType,
-      sourceCategory: sourceMeta.category,
-      targetCategory: targetMeta.category,
-      isTrainingConfig,
-      isMetricTarget,
-      isOptimizerTarget,
-      sourceMeta,
-      targetMeta
-    });
     return false;
   }
 
@@ -247,12 +212,6 @@ const isValidTrainingConnection = (nodes: Node[], connection: Connection): boole
     : false;
 
   if (!isValidWorkflow) {
-    console.log('DEBUG: Invalid workflow', {
-      sourceCategory: sourceMeta.category,
-      targetCategory: targetMeta.category,
-      sourceNode: sourceNode.data.registryKey,
-      targetNode: targetNode.data.registryKey
-    });
     return false;
   }
 

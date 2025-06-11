@@ -306,7 +306,6 @@ function FlowCanvasInner() {
     (params: Connection) => {
       const isValid = useFlowStore.getState().isValidConnection(params);
       if (!isValid) {
-        console.log('Invalid connection');
         return;
       }
       const newEdge = {
@@ -1100,17 +1099,106 @@ function FlowCanvasInner() {
     code += '        train_epoch()\n';
     code += '        evaluate()\n';
     if (callbacks.length > 0) {
+      // Add callback variables initialization
+      let hasEarlyStopping = false;
+      let hasLRMonitor = false;
+      
       callbacks.forEach(node => {
         const meta = trainingRegistry.find(l => l.torchClass === node.data.registryKey);
-        if (meta && meta.torchClass === 'callbacks.ModelCheckpoint') {
-          code += '        # Model checkpoint\n';
-          code += '        if test_loss < best_metric:\n';
-          code += '            best_metric = test_loss\n';
-          code += '            torch.save(model.state_dict(), "best_model.pth")\n';
-        } else if (meta && meta.torchClass === 'callbacks.EarlyStopping') {
-          code += '        # Early stopping logic would go here\n';
+        if (meta && meta.torchClass === 'callbacks.EarlyStopping') {
+          hasEarlyStopping = true;
         } else if (meta && meta.torchClass === 'callbacks.LearningRateMonitor') {
-          code += '        # Learning rate monitoring would go here\n';
+          hasLRMonitor = true;
+        }
+      });
+      
+      // Add early stopping variables if needed
+      if (hasEarlyStopping) {
+        code = code.replace('def train():\n    best_metric = float("inf")\n', 
+          'def train():\n    best_metric = float("inf")\n    early_stop_counter = 0\n    early_stop_patience = 7\n    best_val_loss = float("inf")\n');
+      }
+      
+      // Add LR monitoring variables if needed
+      if (hasLRMonitor) {
+        code += '        current_lr = optimizer.param_groups[0]["lr"]\n';
+        code += '        print(f"Learning Rate: {current_lr:.6f}")\n';
+      }
+      
+      callbacks.forEach(node => {
+        const meta = trainingRegistry.find(l => l.torchClass === node.data.registryKey);
+        const params = node.data.params || {};
+        
+        if (meta && meta.torchClass === 'callbacks.ModelCheckpoint') {
+          const monitor = params.monitor || 'val_loss';
+          const mode = params.mode || 'min';
+          const save_top_k = params.save_top_k || 1;
+          const verbose = params.verbose || false;
+          
+          code += '        # Model checkpoint\n';
+          if (mode === 'min') {
+            code += `        if ${monitor.replace('val_', '')} < best_metric:\n`;
+          } else {
+            code += `        if ${monitor.replace('val_', '')} > best_metric:\n`;
+          }
+          code += `            best_metric = ${monitor.replace('val_', '')}\n`;
+          code += '            torch.save({\n';
+          code += '                "model_state_dict": model.state_dict(),\n';
+          code += '                "optimizer_state_dict": optimizer.state_dict(),\n';
+          code += '                "epoch": epoch,\n';
+          code += `                "${monitor}": best_metric,\n`;
+          code += '            }, "best_model_checkpoint.pth")\n';
+          if (verbose) {
+            code += `            print(f"Saved new best model with {monitor}: {{best_metric:.4f}}")\n`;
+          }
+          
+        } else if (meta && meta.torchClass === 'callbacks.EarlyStopping') {
+          const monitor = params.monitor || 'val_loss';
+          const patience = params.patience || 7;
+          const mode = params.mode || 'min';
+          const min_delta = params.min_delta || 0.0;
+          const verbose = params.verbose || false;
+          const restore_best = params.restore_best_weights || false;
+          
+          code += '        # Early stopping logic\n';
+          if (mode === 'min') {
+            code += `        if ${monitor.replace('val_', '')} < (best_val_loss - ${min_delta}):\n`;
+          } else {
+            code += `        if ${monitor.replace('val_', '')} > (best_val_loss + ${min_delta}):\n`;
+          }
+          code += `            best_val_loss = ${monitor.replace('val_', '')}\n`;
+          code += '            early_stop_counter = 0\n';
+          if (restore_best) {
+            code += '            # Save best weights\n';
+            code += '            best_model_state = model.state_dict().copy()\n';
+          }
+          code += '        else:\n';
+          code += '            early_stop_counter += 1\n';
+          if (verbose) {
+            code += `            print(f"Early stopping counter: {{early_stop_counter}}/{patience}")\n`;
+          }
+          code += `        if early_stop_counter >= {patience}:\n`;
+          if (verbose) {
+            code += `            print(f"Early stopping triggered after {{epoch + 1}} epochs")\n`;
+          }
+          if (restore_best) {
+            code += '            model.load_state_dict(best_model_state)\n';
+          }
+          code += '            break\n';
+          
+        } else if (meta && meta.torchClass === 'callbacks.LearningRateMonitor') {
+          const logging_interval = params.logging_interval || 'epoch';
+          const log_momentum = params.log_momentum || false;
+          
+          code += '        # Learning rate monitoring\n';
+          code += '        current_lr = optimizer.param_groups[0]["lr"]\n';
+          if (logging_interval === 'epoch') {
+            code += '        print(f"Epoch {epoch+1} - Learning Rate: {current_lr:.8f}")\n';
+          }
+          if (log_momentum && 'momentum' in meta.defaults) {
+            code += '        if hasattr(optimizer, "defaults") and "momentum" in optimizer.defaults:\n';
+            code += '            momentum = optimizer.param_groups[0].get("momentum", 0)\n';
+            code += '            print(f"Momentum: {momentum:.4f}")\n';
+          }
         }
       });
     }
