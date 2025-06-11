@@ -65,7 +65,6 @@ if "up.railway.app" in allowed_hosts_str and "*.up.railway.app" not in allowed_h
     allowed_hosts_str += ",*.up.railway.app"
 
 allowed_hosts = [host.strip() for host in allowed_hosts_str.split(",") if host.strip()]
-print(f"🔧 Allowed hosts: {allowed_hosts}")  # Debug logging
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 # Security: Fix CORS configuration - NO MORE WILDCARD
@@ -81,10 +80,6 @@ app.add_middleware(
 # Security headers middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    # Debug: Log host header for troubleshooting
-    host_header = request.headers.get("host", "NO_HOST")
-    print(f"🌐 Request host header: {host_header}")
-    
     response = await call_next(request)
     
     # Security headers
