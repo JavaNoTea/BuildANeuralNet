@@ -27,7 +27,7 @@ import { trainingRegistry } from '@/lib/trainingRegistry';
 import PropertyPanel from '@/components/PropertyPanel';
 import { useFlowStore } from '@/stores/flowStore';
 import { useAuthStore } from '@/stores/authStore';
-import { FaCode, FaProjectDiagram, FaCog } from 'react-icons/fa';
+import { FaCode, FaProjectDiagram, FaCog, FaCopy, FaQuestionCircle } from 'react-icons/fa';
 import EdgeInfo from '@/components/EdgeInfo';
 import CodeEditor from '@/components/CodeEditor';
 import { api } from '@/lib/api';
@@ -181,6 +181,8 @@ function FlowCanvasInner() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [consoleOutput, setConsoleOutput] = useState<string>('');
+  const [showExecutionPopup, setShowExecutionPopup] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const { screenToFlowPosition } = useReactFlow();
   const [connectMode, setConnectMode] = useState(false);
   const [connectSource, setConnectSource] = useState<string | null>(null);
@@ -1121,6 +1123,17 @@ function FlowCanvasInner() {
     return code;
   }, [modelNodes, modelEdges, trainingNodes, trainingEdges]);
 
+  // Copy code to clipboard
+  const copyCodeToClipboard = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy code:', err);
+    }
+  }, [code]);
+
   // Add template creation function
   const createResNetTemplate = useCallback(() => {
     const position = { x: 100, y: 100 };
@@ -1791,60 +1804,46 @@ function FlowCanvasInner() {
       >
         {mode === 'code' ? (
           <div className="w-full h-full flex flex-col items-stretch bg-white overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b">
+            <div className="flex justify-between items-center p-4 border-b bg-gray-50">
               <div className="flex items-center gap-4">
-                <h2 className="text-lg font-semibold text-gray-900">Code Editor</h2>
-                <div className="flex gap-2">
+                <h2 className="text-lg font-semibold text-gray-900">PyTorch Code Generator</h2>
+                <div className="flex gap-3">
                   <button
                     onClick={() => {
                       const generatedCode = generatePyTorchCode();
                       setCode(generatedCode);
-                      setConsoleOutput('Code generated successfully!\nClick "Run" to execute the code.');
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                   >
+                    <FaCode className="w-4 h-4" />
                     Generate Code
                   </button>
                   <button
-                    disabled
-                    className="px-4 py-2 bg-gray-500 text-gray-300 rounded cursor-not-allowed"
-                    title="Training execution temporarily disabled"
+                    onClick={copyCodeToClipboard}
+                    className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                      copySuccess 
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-gray-600 text-white hover:bg-gray-700'
+                    }`}
                   >
-                    Run Training (Disabled)
+                    <FaCopy className="w-4 h-4" />
+                    {copySuccess ? 'Copied!' : 'Copy Code'}
                   </button>
-                </div>
-              </div>
-              <div></div>
-            </div>
-            <div className="flex-1 flex overflow-hidden">
-              <div className="flex-1 h-full">
-                <CodeEditor
-                  code={code}
-                  onCodeChange={setCode}
-                />
-              </div>
-              <div className="w-1/3 border-l flex flex-col overflow-hidden">
-                <div className="p-2 bg-gray-800 text-white font-semibold border-b flex justify-between items-center">
-                  <span>Console Output</span>
                   <button
-                    onClick={() => setConsoleOutput('')}
-                    className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded transition-colors"
-                    title="Clear console"
+                    onClick={() => setShowExecutionPopup(true)}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
                   >
-                    Clear
+                    <FaQuestionCircle className="w-4 h-4" />
+                    Why No Execute?
                   </button>
                 </div>
-                <div className="flex-1 bg-gray-900 text-green-400 p-4 font-mono text-sm whitespace-pre-wrap overflow-y-auto">
-                  {consoleOutput || (
-                    <div>
-                      <div className="text-gray-400 mb-2">Console output will appear here...</div>
-                      <div className="text-yellow-400 text-xs bg-gray-800 p-2 rounded border-l-4 border-yellow-500">
-                        📋 <strong>Note:</strong> Training logs will appear when training completes (not real-time streaming)
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <CodeEditor
+                code={code}
+                onCodeChange={setCode}
+              />
             </div>
           </div>
         ) : (
@@ -2023,6 +2022,52 @@ function FlowCanvasInner() {
 
       {selectedId && mode !== 'code' && (
         <PropertyPanel nodeId={selectedId} onClose={() => setSelectedId(null)} />
+      )}
+
+      {/* Execution Explanation Popup */}
+      {showExecutionPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                <FaQuestionCircle className="w-4 h-4 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Why is Code Execution Disabled?
+                </h3>
+                <div className="text-gray-600 space-y-3">
+                  <p>
+                    <strong>Code execution has been permanently removed</strong> because it required expensive cloud resources to run PyTorch training.
+                  </p>
+                  <p>
+                    As the creator, I felt uncomfortable charging users for this feature since this is meant to be a <strong>free, open-source educational tool</strong> for learning neural network architectures.
+                  </p>
+                  <p>
+                    Instead, you can:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li>Copy the generated PyTorch code</li>
+                    <li>Run it in your local environment</li>
+                    <li>Use Google Colab (free GPU access)</li>
+                    <li>Upload to Kaggle notebooks</li>
+                  </ul>
+                  <p className="text-sm italic">
+                    This keeps the tool completely free for everyone! 🎓
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowExecutionPopup(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

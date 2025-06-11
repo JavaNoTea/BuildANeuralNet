@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import LayerSidebar from '@/components/LayerSidebar';
+import TrainingSidebar from '@/components/TrainingSidebar';
 import FlowCanvas from '@/components/FlowCanvas';
 import AuthModal from '@/components/AuthModal';
 import UserMenu from '@/components/UserMenu';
@@ -61,7 +62,8 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {mode !== 'code' && <LayerSidebar />}
+      {mode === 'model' && <LayerSidebar />}
+      {mode === 'training' && <TrainingSidebar />}
       <FlowCanvas />
       
       <AuthModal
