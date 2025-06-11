@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Editor } from '@monaco-editor/react';
+import '../lib/monaco-config'; // Initialize Monaco configuration
 
 interface CodeEditorProps {
   code: string;
@@ -21,8 +22,8 @@ export default function CodeEditor({ code, onCodeChange }: CodeEditorProps) {
     handleCodeChange(e.target.value);
   };
 
-  const handleEditorDidMount = () => {
-    console.log('Monaco Editor mounted successfully');
+  const handleEditorDidMount = (editor: any, monaco: any) => {
+    console.log('Monaco Editor mounted successfully', { editor, monaco });
     setIsLoading(false);
     setError(null);
   };
@@ -36,24 +37,41 @@ export default function CodeEditor({ code, onCodeChange }: CodeEditorProps) {
         setIsLoading(false);
         setError('Monaco Editor failed to load - using fallback editor');
       }
-    }, 5000); // 5 second timeout
+    }, 10000); // 10 second timeout for production
 
     return () => clearTimeout(timeout);
   }, [isLoading]);
+
+  // Try to detect if we're in a problematic environment and use textarea immediately
+  useEffect(() => {
+    // Check if we're in an environment where Monaco might not work
+    const isProblematicEnv = typeof window !== 'undefined' && (
+      !window.MonacoEnvironment && 
+      !document.querySelector('script[src*="monaco"]') &&
+      navigator.userAgent.includes('HeadlessChrome') // Detect some server environments
+    );
+
+    if (isProblematicEnv) {
+      console.info('Detected environment issues, using fallback editor');
+      setUseTextarea(true);
+      setIsLoading(false);
+      setError(null); // Don't show error for environmental issues
+    }
+  }, []);
 
   // Textarea fallback
   if (useTextarea || error) {
     return (
       <div className="w-full h-full relative">
         {error && (
-          <div className="absolute top-0 left-0 right-0 bg-yellow-100 border-b border-yellow-200 px-3 py-2 text-sm text-yellow-800 z-10">
+          <div className="absolute top-0 left-0 right-0 bg-blue-50 border-b border-blue-200 px-3 py-2 text-sm text-blue-800 z-10">
             <div className="flex items-center justify-between">
-              <span>⚠️ {error}</span>
+              <span>ℹ️ Using fallback code editor (Monaco Editor not available)</span>
               <button
                 onClick={() => window.location.reload()}
-                className="px-2 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-xs transition-colors"
+                className="px-2 py-1 bg-blue-200 hover:bg-blue-300 rounded text-xs transition-colors"
               >
-                Reload
+                Retry
               </button>
             </div>
           </div>

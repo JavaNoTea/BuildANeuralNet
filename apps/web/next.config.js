@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable static export only for production builds
-  ...(process.env.NODE_ENV === 'production' && {
+  // Only use static export for local builds, not Railway
+  ...(process.env.STATIC_EXPORT === 'true' && {
     output: 'export',
     trailingSlash: true,
   }),
+  
   images: {
     unoptimized: true
   },
@@ -14,36 +15,30 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Optimize for production
-  swcMinify: true,
-  
-  // Enable experimental features for better performance
-  experimental: {
-    appDir: true,
-  },
-  
   // Configure environment variables
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   },
   
   // Webpack configuration for Monaco Editor
-  webpack: (config, { isServer }) => {
-    // Monaco Editor configuration
+  webpack: (config, { isServer, dev }) => {
+    // Monaco Editor configuration for client-side only
     if (!isServer) {
+      // Configure fallbacks for Node.js modules
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
-        module: false,
         path: false,
+        os: false,
+        crypto: false,
+        stream: false,
+        assert: false,
+        http: false,
+        https: false,
+        url: false,
+        zlib: false,
       };
     }
-    
-    // Handle Monaco Editor worker files
-    config.module.rules.push({
-      test: /\.worker\.js$/,
-      use: { loader: 'worker-loader' },
-    });
     
     return config;
   },
