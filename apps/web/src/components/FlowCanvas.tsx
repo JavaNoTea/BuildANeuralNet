@@ -122,7 +122,7 @@ const CustomNode: React.FC<NodeProps> = ({ data }) => {
   }
 
   return (
-    <div className="relative" style={{ minWidth: '150px' }}>
+    <div className="relative" style={{ minWidth: '150px', maxWidth: '200px' }}>
       {/* Input handle */}
       <Handle
         type="target"
@@ -184,10 +184,127 @@ function FlowCanvasInner() {
   const [showExecutionPopup, setShowExecutionPopup] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [showTip, setShowTip] = useState(() => {
+    // Check if user has previously dismissed the tip
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('nn-builder-tip-dismissed');
+    }
+    return true;
+  });
+  
+  const [residualConnectionInfo, setResidualConnectionInfo] = useState<string | null>(null);
+
+  const dismissTip = () => {
+    setShowTip(false);
+    localStorage.setItem('nn-builder-tip-dismissed', 'true');
+  };
+
   const { screenToFlowPosition } = useReactFlow();
   const [connectMode, setConnectMode] = useState(false);
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [edgeType, setEdgeType] = useState<'default' | 'residual' | 'sum'>('default');
+  
+  // Auto-detect and update residual edges based on graph structure
+  useEffect(() => {
+    const updateResidualEdges = () => {
+      const modelNodes = nodes.filter(n => !n.data.isTraining);
+      const modelEdges = edges.filter(e => {
+        const sourceNode = nodes.find(n => n.id === e.source);
+        const targetNode = nodes.find(n => n.id === e.target);
+        return !sourceNode?.data.isTraining && !targetNode?.data.isTraining;
+      });
+      
+      // Create a topological order for model nodes
+      const createTopologicalOrder = (nodes: Node[], edges: any[]) => {
+        const indegree = new Map<string, number>();
+        const adjList = new Map<string, string[]>();
+        
+        nodes.forEach(node => {
+          indegree.set(node.id, 0);
+          adjList.set(node.id, []);
+        });
+        
+        edges.forEach(edge => {
+          adjList.get(edge.source)?.push(edge.target);
+          indegree.set(edge.target, (indegree.get(edge.target) || 0) + 1);
+        });
+        
+        const queue = nodes.filter(node => indegree.get(node.id) === 0);
+        const result: Node[] = [];
+        
+        while (queue.length > 0) {
+          const node = queue.shift()!;
+          result.push(node);
+          
+          adjList.get(node.id)?.forEach(neighbor => {
+            indegree.set(neighbor, indegree.get(neighbor)! - 1);
+            if (indegree.get(neighbor) === 0) {
+              const neighborNode = nodes.find(n => n.id === neighbor);
+              if (neighborNode) queue.push(neighborNode);
+            }
+          });
+        }
+        
+        return result;
+      };
+      
+      const modelOrder = createTopologicalOrder(modelNodes, modelEdges);
+      
+      // Detect residual connections and update edge types
+      let detectedResidualCount = 0;
+      const updatedEdges = edges.map(edge => {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        
+        // Skip training edges
+        if (sourceNode?.data.isTraining || targetNode?.data.isTraining) {
+          return edge;
+        }
+        
+        // Check if this edge creates a skip connection
+        const sourceIndex = modelOrder.findIndex(n => n.id === edge.source);
+        const targetIndex = modelOrder.findIndex(n => n.id === edge.target);
+        
+        if (sourceIndex !== -1 && targetIndex !== -1) {
+          const distance = targetIndex - sourceIndex;
+          
+          // Check if target has multiple inputs
+          const targetIncomingEdges = modelEdges.filter(e => e.target === edge.target);
+          
+          if (targetIncomingEdges.length > 1 && distance > 1) {
+            // This is likely a skip connection - find the shortest path to target
+            const shortestDistance = Math.min(...targetIncomingEdges.map(e => {
+              const srcIdx = modelOrder.findIndex(n => n.id === e.source);
+              return targetIndex - srcIdx;
+            }));
+            
+            if (distance > shortestDistance + 1) {
+              // This edge skips layers, mark as residual
+              if (edge.type !== 'residual') {
+                detectedResidualCount++;
+              }
+              return { ...edge, type: 'residual' };
+            }
+          }
+        }
+        
+        return edge;
+      });
+      
+      // Provide user feedback about detected residual connections
+      if (detectedResidualCount > 0) {
+        setResidualConnectionInfo(`Auto-detected ${detectedResidualCount} residual connection${detectedResidualCount > 1 ? 's' : ''} (skip connections)`);
+        setTimeout(() => setResidualConnectionInfo(null), 3000);
+      }
+      
+      setEdges(updatedEdges);
+    };
+    
+    // Run auto-detection when nodes or edges change
+    if (nodes.length > 0 && edges.length > 0) {
+      updateResidualEdges();
+    }
+  }, [nodes, edges, setEdges]);
   
   // Track polling state to prevent memory leaks and infinite loops
   const pollingRef = useRef<{
@@ -834,17 +951,96 @@ function FlowCanvasInner() {
     const processedNodes = new Set<string>();
     const nodeOutputs = new Map<string, string>();
     
-    // Track residual connections for skip connections
+    // Auto-detect residual connections by finding shorter paths (skip connections)
     const residualSources = new Map<string, string[]>(); // target node -> source nodes for residual connections
     const sumSources = new Map<string, string[]>(); // target node -> source nodes for sum operations
     
-    // First, analyze edges to identify residual and sum connections
+    // Build adjacency list for path analysis
+    const adjacencyList = new Map<string, string[]>();
+    modelEdges.forEach(edge => {
+      if (!adjacencyList.has(edge.source)) {
+        adjacencyList.set(edge.source, []);
+      }
+      adjacencyList.get(edge.source)!.push(edge.target);
+    });
+    
+    // Find shortest path between two nodes using BFS
+    const findShortestPath = (start: string, end: string): number => {
+      if (start === end) return 0;
+      
+      const queue = [{ node: start, distance: 0 }];
+      const visited = new Set<string>();
+      
+      while (queue.length > 0) {
+        const { node, distance } = queue.shift()!;
+        
+        if (visited.has(node)) continue;
+        visited.add(node);
+        
+        const neighbors = adjacencyList.get(node) || [];
+        for (const neighbor of neighbors) {
+          if (neighbor === end) return distance + 1;
+          if (!visited.has(neighbor)) {
+            queue.push({ node: neighbor, distance: distance + 1 });
+          }
+        }
+      }
+      
+      return Infinity; // No path found
+    };
+    
+    // Auto-detect residual connections: find nodes with multiple incoming edges where one is significantly shorter
+    const nodeIncomingEdges = new Map<string, { source: string; directDistance: number }[]>();
+    modelEdges.forEach(edge => {
+      if (!nodeIncomingEdges.has(edge.target)) {
+        nodeIncomingEdges.set(edge.target, []);
+      }
+      // Calculate the shortest path from source to target through other nodes
+      const directDistance = 1; // Direct edge distance
+      nodeIncomingEdges.get(edge.target)!.push({ source: edge.source, directDistance });
+    });
+    
+    // For each node with multiple inputs, check if some are skip connections
+    nodeIncomingEdges.forEach((inputs, targetNode) => {
+      if (inputs.length > 1) {
+        // Find the minimum path distance through intermediate nodes
+        const pathDistances = inputs.map(input => {
+          // Count layers between source and target in the sequential order
+          const sourceIndex = modelOrder.findIndex(n => n.id === input.source);
+          const targetIndex = modelOrder.findIndex(n => n.id === targetNode);
+          return { ...input, sequentialDistance: Math.abs(targetIndex - sourceIndex) };
+        });
+        
+        // Sort by sequential distance
+        pathDistances.sort((a, b) => a.sequentialDistance - b.sequentialDistance);
+        
+        // If there's a significant gap between shortest and longest paths, treat longer ones as residual
+        const shortestPath = pathDistances[0].sequentialDistance;
+        const longestPath = pathDistances[pathDistances.length - 1].sequentialDistance;
+        
+        if (longestPath > shortestPath + 1) {
+          // Connections that skip more than 1 layer are considered residual
+          pathDistances.forEach(path => {
+            if (path.sequentialDistance > shortestPath + 1) {
+              if (!residualSources.has(targetNode)) {
+                residualSources.set(targetNode, []);
+              }
+              residualSources.get(targetNode)!.push(path.source);
+            }
+          });
+        }
+      }
+    });
+    
+    // Also handle manually marked edges for backwards compatibility
     modelEdges.forEach(edge => {
       if (edge.type === 'residual') {
         if (!residualSources.has(edge.target)) {
           residualSources.set(edge.target, []);
         }
-        residualSources.get(edge.target)!.push(edge.source);
+        if (!residualSources.get(edge.target)!.includes(edge.source)) {
+          residualSources.get(edge.target)!.push(edge.source);
+        }
       } else if (edge.type === 'sum') {
         if (!sumSources.has(edge.target)) {
           sumSources.set(edge.target, []);
@@ -1900,7 +2096,6 @@ function FlowCanvasInner() {
     <>
       <div
         className="flex-1 h-screen bg-gray-100 relative"
-        style={{ zIndex: 0 }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={onDrop}
       >
@@ -2137,9 +2332,33 @@ function FlowCanvasInner() {
         </div>
       </div>
 
+      {/* Residual Connection Detection Notification */}
+      {residualConnectionInfo && (
+        <div className="fixed top-4 right-4 max-w-md rounded-lg p-4 shadow-lg z-50 bg-green-50 border border-green-200">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-green-100">
+              <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold mb-1 text-green-800">
+                Residual Connections Detected
+              </h3>
+              <p className="text-sm text-green-700">
+                {residualConnectionInfo}
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                These are automatically styled as dashed green lines in your PyTorch code.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Validation Error Display */}
       {validationError && (
-        <div className={`fixed top-4 right-4 max-w-md rounded-lg p-4 shadow-lg z-50 ${
+        <div className={`fixed ${residualConnectionInfo ? 'top-32' : 'top-4'} right-4 max-w-md rounded-lg p-4 shadow-lg z-50 ${
           validationError.includes('warnings') 
             ? 'bg-yellow-50 border border-yellow-200' 
             : 'bg-red-50 border border-red-200'
@@ -2190,14 +2409,25 @@ function FlowCanvasInner() {
         </div>
       )}
 
-      {/* Right-click Hint */}
-      {mode !== 'code' && (
-        <div className="fixed top-4 left-4 bg-blue-50 border border-blue-200 rounded-lg p-3 shadow-lg z-40">
-          <div className="flex items-center gap-2">
-            <FaQuestionCircle className="w-4 h-4 text-blue-600" />
-            <span className="text-sm text-blue-800">
-              <strong>Tip:</strong> Right-click on toolbar items for more info!
-            </span>
+      {/* Right-click Hint - Dismissible */}
+      {mode !== 'code' && showTip && (
+        <div className="fixed top-4 left-4 bg-blue-50 border border-blue-200 rounded-lg p-3 shadow-lg z-40 max-w-sm">
+          <div className="flex items-start gap-2">
+            <FaQuestionCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <span className="text-sm text-blue-800">
+                <strong>Tip:</strong> Right-click on toolbar items for more info!
+              </span>
+            </div>
+            <button
+              onClick={dismissTip}
+              className="text-blue-400 hover:text-blue-600 transition-colors flex-shrink-0"
+              title="Dismiss tip"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
