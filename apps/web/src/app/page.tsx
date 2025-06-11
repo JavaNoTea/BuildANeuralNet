@@ -61,7 +61,7 @@ export default function Home() {
   }, [isAuthenticated]);
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 relative">
       {mode === 'model' && <LayerSidebar />}
       {mode === 'training' && <TrainingSidebar />}
       <FlowCanvas />
@@ -78,6 +78,21 @@ export default function Home() {
           <UserMenu />
         </div>
       )}
+
+      {/* Watermark */}
+      <div className="fixed bottom-2 right-2 z-40 pointer-events-none">
+        <div className="text-xs text-gray-400 opacity-70 hover:opacity-100 transition-opacity pointer-events-auto">
+          <span>made by </span>
+          <a 
+            href="https://github.com/JavaNoTea/BuildANeuralNet" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-gray-600 underline underline-offset-2"
+          >
+            christian king
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
