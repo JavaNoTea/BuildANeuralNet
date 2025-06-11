@@ -1,6 +1,33 @@
 import { useAuthStore } from '@/stores/authStore';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Automatically detect the correct API base URL
+const getApiBaseUrl = () => {
+  // If we have an explicit API URL set, use it
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  // In browser environment
+  if (typeof window !== 'undefined') {
+    // If we're on Railway or production domain, use the current origin
+    const hostname = window.location.hostname;
+    if (hostname.includes('.up.railway.app') || 
+        hostname.includes('buildaneural.net') || 
+        hostname.includes('buildaneuralnet')) {
+      return window.location.origin;
+    }
+  }
+  
+  // Default to local development
+  return 'http://localhost:8000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Debug logging in development
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('API Base URL:', API_BASE_URL);
+}
 
 // Security constants
 const REQUEST_TIMEOUT = 10000; // 10 seconds
