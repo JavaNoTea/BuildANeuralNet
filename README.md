@@ -18,8 +18,7 @@ As someone learning deep learning, I found it frustrating to translate neural ne
 
 ## Demo
 
-Try it live at: **[buildaneural.net](https://buildaneural.net)**
-Temporary working link:  **[buildaneuralnet-production.up.railway.app](https://buildaneuralnet-production.up.railway.app)**
+Try it live at: **[buildaneural.net](https://www.buildaneural.net)**
 
 ## Tech Stack
 
