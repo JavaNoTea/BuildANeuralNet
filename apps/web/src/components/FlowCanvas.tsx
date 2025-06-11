@@ -305,7 +305,6 @@ function FlowCanvasInner() {
       
       // Only update if there are actual changes to prevent infinite loops
       if (hasChanges) {
-        console.log('Auto-detection: updating edges with residual connections', { detectedResidualCount, updatedEdges: updatedEdges.map(e => ({ id: e.id, source: e.source, target: e.target, type: e.type })) });
         setEdges(updatedEdges);
         
         // Provide user feedback about detected residual connections
@@ -1050,11 +1049,9 @@ function FlowCanvasInner() {
     });
     
     // Also handle manually marked edges for backwards compatibility
-    console.log('Code generation - checking edge types:', modelEdges.map(e => ({ id: e.id, source: e.source, target: e.target, type: e.type })));
-    
+    // Also handle manually marked edges for backwards compatibility
     modelEdges.forEach(edge => {
       if (edge.type === 'residual') {
-        console.log(`Found residual edge in code generation: ${edge.source} -> ${edge.target}`);
         if (!residualSources.has(edge.target)) {
           residualSources.set(edge.target, []);
         }
