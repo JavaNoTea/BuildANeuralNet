@@ -38,8 +38,14 @@ app = FastAPI(title="Neural Network Builder API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Security: Add trusted host middleware
-allowed_hosts = os.getenv("ALLOWED_HOSTS", "www.buildaneural.net,buildaneuralnet-production.up.railway.app,buildaneural.net,localhost,127.0.0.1").split(",")
+# Security: Add trusted host middleware - Allow Railway subdomains
+allowed_hosts_str = os.getenv("ALLOWED_HOSTS", "www.buildaneural.net,buildaneuralnet-production.up.railway.app,buildaneural.net,localhost,127.0.0.1")
+
+# Add Railway wildcard patterns if not already present
+if "up.railway.app" in allowed_hosts_str and "*.up.railway.app" not in allowed_hosts_str:
+    allowed_hosts_str += ",*.up.railway.app"
+
+allowed_hosts = allowed_hosts_str.split(",")
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 # Security: Fix CORS configuration - NO MORE WILDCARD
