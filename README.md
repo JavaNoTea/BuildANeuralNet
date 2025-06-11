@@ -4,6 +4,16 @@ A visual drag-and-drop neural network designer that generates clean PyTorch code
 
 ![Neural Network Builder](https://img.shields.io/badge/React-18-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-Python-green) ![PyTorch](https://img.shields.io/badge/PyTorch-Ready-orange)
 
+## Demo
+
+Try it live at: **[buildaneural.net](https://www.buildaneural.net)**
+
+<div align="center">
+  <img src="screenshots/buildaneuralnetscreenshot1.png" alt="Neural Network Builder - Main Interface" width="80%">
+  <br>
+  <em>Main interface showing the visual drag-and-drop neural network designer</em>
+</div>
+
 ## Why I Built This
 
 As someone learning deep learning, I found it frustrating to translate neural network architectures from papers into actual code. I wanted a tool that would let me design networks visually and then generate the PyTorch implementation automatically.
@@ -16,9 +26,11 @@ As someone learning deep learning, I found it frustrating to translate neural ne
 - **Save & Load**: Keep your designs and iterate on them
 - **User Accounts**: Sign up to save your models in the cloud
 
-## Demo
-
-Try it live at: **[buildaneural.net](https://www.buildaneural.net)**
+<div align="center">
+  <img src="screenshots/buildaneuralnetscreenshot2.png" alt="Layer Configuration Panel" width="70%">
+  <br>
+  <em>Layer configuration panel with real-time parameter adjustment</em>
+</div>
 
 ## Tech Stack
 
@@ -39,12 +51,24 @@ Try it live at: **[buildaneural.net](https://www.buildaneural.net)**
 ### Smart Connection Validation
 The editor validates connections between layers in real-time, checking tensor dimensions and data types to prevent common mistakes.
 
+<div align="center">
+  <img src="screenshots/buildaneuralnetscreenshot3.png" alt="Connection Validation" width="70%">
+  <br>
+  <em>Real-time connection validation showing compatible layer connections</em>
+</div>
+
 ### Clean Code Generation
 Instead of just dumping layers together, the generator creates properly structured PyTorch classes with:
 - Proper imports and dependencies
 - Clean forward() methods
 - Training loops with optimizers
 - Example usage code
+
+<div align="center">
+  <img src="screenshots/buildaneuralnetscreenshot4.png" alt="Generated PyTorch Code" width="75%">
+  <br>
+  <em>Clean, production-ready PyTorch code generated from the visual design</em>
+</div>
 
 ### Responsive Design
 Works on desktop and tablet - I spent time making sure the drag-and-drop feels smooth across devices.
