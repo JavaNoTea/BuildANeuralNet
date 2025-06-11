@@ -52,9 +52,18 @@ As someone learning deep learning, I found it frustrating to translate neural ne
 The editor validates connections between layers in real-time, checking tensor dimensions and data types to prevent common mistakes.
 
 <div align="center">
-  <img src="screenshots/buildaneuralnetscreenshot3.png" alt="Connection Validation" width="70%">
+  <img src="screenshots/buildaneuralnetscreenshot5.png" alt="Connection Validation" width="70%">
   <br>
   <em>Real-time connection validation showing compatible layer connections</em>
+</div>
+
+### Additional Tool Information
+Detailed layer information and parameter tooltips help users understand each component while building their networks.
+
+<div align="center">
+  <img src="screenshots/buildaneuralnetscreenshot3.png" alt="Additional Tool Information" width="70%">
+  <br>
+  <em>Comprehensive layer information and parameter guidance for users</em>
 </div>
 
 ### Clean Code Generation
