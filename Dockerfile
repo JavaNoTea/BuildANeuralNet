@@ -1,4 +1,4 @@
-# Optimized Dockerfile for Railway deployment
+# Optimized Dockerfile for Railway deployment - v2
 FROM python:3.11-slim
 
 # Install only essential system dependencies
@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy and install minimal Python dependencies
+# Copy and install minimal Python dependencies (NO PYTORCH)
 COPY requirements-production.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip cache purge
