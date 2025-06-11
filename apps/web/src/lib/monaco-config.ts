@@ -8,7 +8,9 @@ export const configureMonaco = () => {
     (window as any).MonacoEnvironment = {
       getWorkerUrl: function (_moduleId: string, label: string) {
         // Use CDN workers for better reliability in production
-        const baseUrl = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs';
+        const baseUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs'
+          : '/node_modules/monaco-editor/min/vs';
         
         if (label === 'json') {
           return `${baseUrl}/language/json/json.worker.js`;
@@ -26,7 +28,7 @@ export const configureMonaco = () => {
       }
     };
 
-    console.log('Monaco environment configured for production');
+    console.log('Monaco environment configured for production with CDN workers');
   }
 };
 

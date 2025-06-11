@@ -1,14 +1,16 @@
-# Simple Railway deployment - Static Next.js + FastAPI
+# Railway deployment - Static Next.js + FastAPI (Monaco with CDN)
 FROM node:18-alpine AS frontend-builder
 
-# Build Next.js app with static export
+# Build Next.js app with static export for Railway
 WORKDIR /app/frontend
 COPY apps/web/package*.json ./
 COPY apps/web/pnpm-lock.yaml* ./
 RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
 COPY apps/web/ ./
-# Build and export as static files
+# Build and export as static files for simple hosting
+ENV NODE_ENV=production
+ENV STATIC_EXPORT=true
 RUN pnpm run build
 
 # Python backend stage
@@ -30,9 +32,8 @@ RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
 # Copy backend code
 COPY apps/api/ ./
 
-# Copy built frontend files
+# Copy built frontend files (static export)
 COPY --from=frontend-builder /app/frontend/out ./static/
-COPY --from=frontend-builder /app/frontend/.next ./static/.next/
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app

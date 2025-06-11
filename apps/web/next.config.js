@@ -1,9 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Only use static export for local builds, not Railway
+  // Configure output based on environment
   ...(process.env.STATIC_EXPORT === 'true' && {
     output: 'export',
     trailingSlash: true,
+  }),
+  ...(process.env.NODE_ENV === 'production' && process.env.STATIC_EXPORT !== 'true' && {
+    output: 'standalone',
   }),
   
   images: {
@@ -21,7 +24,7 @@ const nextConfig = {
   },
   
   // Webpack configuration for Monaco Editor
-  webpack: (config, { isServer, dev }) => {
+  webpack: (config, { isServer }) => {
     // Monaco Editor configuration for client-side only
     if (!isServer) {
       // Configure fallbacks for Node.js modules
