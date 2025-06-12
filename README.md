@@ -79,8 +79,6 @@ Instead of just dumping layers together, the generator creates properly structur
   <em>Clean, production-ready PyTorch code generated from the visual design</em>
 </div>
 
-### Responsive Design
-Works on desktop and tablet - I spent time making sure the drag-and-drop feels smooth across devices.
 
 ## Quick Start
 
