@@ -770,22 +770,26 @@ function FlowCanvasInner() {
             const meta = layerRegistry.find(l => l.torchClass === node.data.registryKey);
             if (meta) {
               if (meta.torchClass.includes('Conv') || meta.torchClass === 'torch.nn.BatchNorm2d') {
-                if (meta.torchClass.includes('Conv')) {
+                if (meta.torchClass.includes('Conv') && !node.data.params.in_channels) {
                   node.data.params.in_channels = inputShape.channels;
-                } else if (meta.torchClass === 'torch.nn.BatchNorm2d') {
+                } else if (meta.torchClass === 'torch.nn.BatchNorm2d' && !node.data.params.num_features) {
                   node.data.params.num_features = inputShape.channels;
                 }
               } else if (meta.torchClass === 'torch.nn.Linear') {
-                // For linear layers, use the flattened size if available
-                if (inputShape.flattened !== undefined) {
-                  node.data.params.in_features = inputShape.flattened;
-                } else if (inputShape.height && inputShape.width) {
-                  node.data.params.in_features = inputShape.channels * inputShape.height * inputShape.width;
-                } else {
-                  node.data.params.in_features = inputShape.channels;
+                // Only set in_features if it hasn't been manually set
+                if (!node.data.params.in_features) {
+                  if (inputShape.flattened !== undefined) {
+                    node.data.params.in_features = inputShape.flattened;
+                  } else if (inputShape.height && inputShape.width) {
+                    node.data.params.in_features = inputShape.channels * inputShape.height * inputShape.width;
+                  } else {
+                    node.data.params.in_features = inputShape.channels;
+                  }
                 }
               } else if (meta.torchClass.startsWith('blocks.ResNet') || meta.torchClass === 'blocks.InceptionModule') {
-                node.data.params.in_channels = inputShape.channels;
+                if (!node.data.params.in_channels) {
+                  node.data.params.in_channels = inputShape.channels;
+                }
               }
             }
             
