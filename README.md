@@ -181,4 +181,6 @@ Feel free to open issues or submit PRs! I'm always looking to improve this tool.
 
 ## License
 
-MIT License - feel free to use this in your own projects! 
+This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details.
+
+The GPL v3 license ensures that any derivative work must also be open source under the same license terms. 

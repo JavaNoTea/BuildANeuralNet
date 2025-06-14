@@ -10,7 +10,7 @@
   },
   "keywords": ["neural-network", "pytorch", "machine-learning", "visual-editor", "react"],
   "author": "JavaNoTea",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "packageManager": "pnpm@10.11.0",
   "devDependencies": {
     "@types/react": "^19.1.6",
